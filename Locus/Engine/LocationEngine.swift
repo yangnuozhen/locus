@@ -18,7 +18,7 @@ enum LocationEngineError: LocalizedError {
         case .invalidCoordinate: return String(localized: "Invalid coordinates.")
         case .invalidIP: return String(localized: "Tunnel IP is invalid. Check Settings → Tunnel IP (usually 10.7.0.1).")
         case .pairingRead: return String(localized: "Could not read the RPPairing file. Generate one with idevice_pair in RPPairing mode.")
-        case .tunnelCreate: return String(localized: "Could not open the developer tunnel. Is LocalDevVPN connected on Wi‑Fi?")
+        case .tunnelCreate: return String(localized: "Could not open the developer tunnel. Enable LocalDevVPN or a compatible VPN route to the configured tunnel IP, then retry on Wi‑Fi.")
         case .remoteServer: return String(localized: "Connected to the tunnel but RemoteXPC handshake failed.")
         case .simulationCreate: return String(localized: "Could not open Apple’s location simulation service.")
         case .locationSet: return String(localized: "Failed to set simulated coordinates.")
@@ -113,7 +113,7 @@ enum LocationEngine {
 
         var address = sockaddr_in()
         address.sin_family = sa_family_t(AF_INET)
-        address.sin_port = in_port_t(49152).bigEndian
+        address.sin_port = in_port_t(TunnelConfig.servicePort).bigEndian
         let inetResult = deviceIP.withCString { inet_pton(AF_INET, $0, &address.sin_addr) }
         guard inetResult == 1 else { return invalidIP }
 

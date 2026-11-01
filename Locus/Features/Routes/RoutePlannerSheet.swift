@@ -17,9 +17,18 @@ struct RoutePlannerSheet: View {
     var body: some View {
         NavigationStack {
             List {
+                Section(String(localized: "Movement speed")) {
+                    SpeedControls()
+                    if session.travelMode == .custom {
+                        Picker(String(localized: "Road type"), selection: $session.motionSettings.customRoadDriving) {
+                            Text(String(localized: "Walking roads")).tag(false)
+                            Text(String(localized: "Driving roads")).tag(true)
+                        }
+                    }
+                }
                 Section(String(localized: "Road route")) {
                     Button(String(localized: "Use current pin / spoof as start")) {
-                        start = session.simulated ?? session.pin
+                        start = session.idealCoordinate ?? session.pin
                     }
                     Button(String(localized: "Use current pin as end")) {
                         end = session.pin
@@ -60,7 +69,7 @@ struct RoutePlannerSheet: View {
                 }
 
                 Section {
-                    Text(String(localized: "Routes follow Apple Maps roads/footpaths for the selected travel mode. Speed gets light random variation so motion looks less robotic."))
+                    Text(String(localized: "Routes follow the selected road type. Adjust drift and speed variation in Settings."))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }

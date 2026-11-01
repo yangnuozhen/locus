@@ -169,3 +169,43 @@
 "iPhone connected" = "iPhone connected";
 "idevice DVT location simulation" = "idevice DVT location simulation";
 "locus, n. — a place. From the Latin for where you are." = "locus, n. — a place. From the Latin for where you are.";
+
+// Custom movement and random simulation.
+"Custom" = "Custom";
+"Custom speed" = "Custom speed";
+"Movement speed" = "Movement speed";
+"Road type" = "Road type";
+"Walking roads" = "Walking roads";
+"Driving roads" = "Driving roads";
+"Shared by joystick and routes. Changes apply while moving." = "Shared by joystick and routes. Changes apply while moving.";
+"Fine adjustment" = "Fine adjustment";
+"Allowed range: %@–%@ %@" = "Allowed range: %@–%@ %@";
+"Enter a number within the allowed range." = "Enter a number within the allowed range.";
+"Random location drift" = "Random location drift";
+"Maximum drift radius" = "Maximum drift radius";
+"Drift stays near the ideal location without accumulating. Applies while stationary and moving." = "Drift stays near the ideal location without accumulating. Applies while stationary and moving.";
+"Random speed variation" = "Random speed variation";
+"Speed variation" = "Speed variation";
+"Varies above and below the base speed. At 5 km/h, ±10% means 4.5–5.5 km/h." = "Varies above and below the base speed. At 5 km/h, ±10% means 4.5–5.5 km/h.";
+"Restore simulation defaults" = "Restore simulation defaults";
+"Random simulation" = "Random simulation";
+"Smooth changes every 3 seconds. Drift is off by default (3 m); speed variation is on (±10%). Changes apply immediately. Saved places and GPX keep their original coordinates." = "Smooth changes every 3 seconds. Drift is off by default (3 m); speed variation is on (±10%). Changes apply immediately. Saved places and GPX keep their original coordinates.";
+"Routes follow the selected road type. Adjust drift and speed variation in Settings." = "Routes follow the selected road type. Adjust drift and speed variation in Settings.";
+
+// Provider-independent developer tunnel.
+"Checking developer tunnel…" = "Checking developer tunnel…";
+"Developer tunnel not reachable" = "Developer tunnel not reachable";
+"Endpoint reachable" = "Endpoint reachable";
+"Tunnel endpoint" = "Tunnel endpoint";
+"Check developer tunnel" = "Check developer tunnel";
+"Use LocalDevVPN or a compatible VPN such as Shadowrocket with an included route to 10.7.0.1/32 (or your custom tunnel IP). Endpoint reachability does not verify pairing. Stop spoofing before changing the tunnel IP. Start spoofing on Wi‑Fi first." = "Use LocalDevVPN or a compatible VPN such as Shadowrocket with an included route to 10.7.0.1/32 (or your custom tunnel IP). Endpoint reachability does not verify pairing. Stop spoofing before changing the tunnel IP. Start spoofing on Wi‑Fi first.";
+"Connect a developer tunnel" = "Connect a developer tunnel";
+"Use LocalDevVPN, or enable a compatible VPN such as Shadowrocket with an included 10.7.0.1/32 route. LocalDevVPN is optional." = "Use LocalDevVPN, or enable a compatible VPN such as Shadowrocket with an included 10.7.0.1/32 route. LocalDevVPN is optional.";
+"Other VPN apps" = "Other VPN apps";
+"Enable the developer tunnel feature and include the tunnel IP as a /32 route in your VPN configuration." = "Enable the developer tunnel feature and include the tunnel IP as a /32 route in your VPN configuration.";
+"Tunnel status" = "Tunnel status";
+"Continue to map" = "Continue to map";
+"Next we’ll set up a developer tunnel." = "Next we’ll set up a developer tunnel.";
+"RPPairing file saved. Connect a compatible developer tunnel, then teleport." = "RPPairing file saved. Connect a compatible developer tunnel, then teleport.";
+"RPPairing is ready. Connect a compatible developer tunnel, then teleport." = "RPPairing is ready. Connect a compatible developer tunnel, then teleport.";
+"Could not open the developer tunnel. Enable LocalDevVPN or a compatible VPN route to the configured tunnel IP, then retry on Wi‑Fi." = "Could not open the developer tunnel. Enable LocalDevVPN or a compatible VPN route to the configured tunnel IP, then retry on Wi‑Fi.";

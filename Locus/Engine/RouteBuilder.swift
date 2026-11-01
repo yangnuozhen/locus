@@ -6,12 +6,12 @@ enum RouteBuilder {
     static func roadRoute(
         from start: CLLocationCoordinate2D,
         to end: CLLocationCoordinate2D,
-        mode: TravelMode
+        transportType: MKDirectionsTransportType
     ) async throws -> [CLLocationCoordinate2D] {
         let request = MKDirections.Request()
         request.source = MKMapItem(placemark: MKPlacemark(coordinate: start))
         request.destination = MKMapItem(placemark: MKPlacemark(coordinate: end))
-        request.transportType = mode.mkTransportType
+        request.transportType = transportType
         request.requestsAlternateRoutes = false
 
         let directions = MKDirections(request: request)

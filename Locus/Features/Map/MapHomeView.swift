@@ -2,6 +2,7 @@ import MapKit
 import SwiftUI
 
 struct MapHomeView: View {
+    var onOpenSettings: () -> Void
     @EnvironmentObject private var session: SpoofSession
     @EnvironmentObject private var pairing: PairingStore
 
@@ -189,7 +190,7 @@ struct MapHomeView: View {
 
     private var topChrome: some View {
         VStack(spacing: 10) {
-            StatusBarView()
+            StatusBarView(onOpenSettings: onOpenSettings)
 
             searchBar
 
@@ -379,7 +380,7 @@ struct MapHomeView: View {
     }
 
     private func buildRoadRoute() {
-        guard let start = routeStart ?? session.simulated ?? session.pin,
+        guard let start = routeStart ?? session.idealCoordinate ?? session.pin,
               let end = routeEnd else {
             session.lastError = String(localized: "Set a route start and end.")
             return
@@ -387,7 +388,7 @@ struct MapHomeView: View {
         isRouting = true
         Task {
             do {
-                let coords = try await RouteBuilder.roadRoute(from: start, to: end, mode: session.travelMode)
+                let coords = try await RouteBuilder.roadRoute(from: start, to: end, transportType: session.roadTransportType)
                 await MainActor.run {
                     routeCoords = coords
                     isRouting = false

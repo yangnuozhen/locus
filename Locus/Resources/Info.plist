@@ -43,7 +43,7 @@
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Locus keeps a light location session alive so simulated GPS can stay active in the background.</string>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Locus uses the local network to advertise as a pairable host (iOS 27 pairing) and to reach the developer tunnel (LocalDevVPN) for GPS override.</string>
+	<string>Locus uses the local network to advertise as a pairable host (iOS 27 pairing) and to reach the developer tunnel (LocalDevVPN or a compatible VPN) for GPS override.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_remotepairing._tcp</string>

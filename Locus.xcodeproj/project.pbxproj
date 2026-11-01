@@ -35,6 +35,8 @@
 		ED847D1532942B669973E18F /* Localizable.strings in Resources */ = {isa = PBXBuildFile; fileRef = 021C58ADEC1F2BA204254D4E /* Localizable.strings */; };
 		F42C461AA339262E17E26A10 /* SetupFlowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 429366C3732ACF4031A7006B /* SetupFlowView.swift */; };
 		F8A8DEF1249AB260C4FF901A /* SilentAudioKeepAlive.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DF917A85B507FDDCF382E2F /* SilentAudioKeepAlive.swift */; };
+		27B695BE79F3B92C1A388373 /* MotionModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0180909CB816C199E4FD7C8 /* MotionModel.swift */; };
+		B4CC6626B93D6B47049D9BC5 /* SpeedControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CDFD23AF4BBBFC74A853A8F /* SpeedControls.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -72,6 +74,8 @@
 		F714A23C4C718E67E978565F /* MapHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MapHomeView.swift; sourceTree = "<group>"; };
 		FE9BF680256F4FF39E4FECB0 /* idevice.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = idevice.h; sourceTree = "<group>"; };
 		FF1AF0F32E88B4227CA45694 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		D0180909CB816C199E4FD7C8 /* MotionModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MotionModel.swift; sourceTree = "<group>"; };
+		3CDFD23AF4BBBFC74A853A8F /* SpeedControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeedControls.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -169,6 +173,7 @@
 		B32582618AEAB100F3C055BD /* Engine */ = {
 			isa = PBXGroup;
 			children = (
+				D0180909CB816C199E4FD7C8 /* MotionModel.swift */,
 				5415BEF759B8C8AF04096B3E /* BackgroundKeepAlive.swift */,
 				723D2BB8E764869195639096 /* CoordinateTransform.swift */,
 				91E2EBD3F6F937176E4EC13F /* DeviceTunnel.swift */,
@@ -186,6 +191,7 @@
 		B67E43CBD395C80F3D3345CB /* Support */ = {
 			isa = PBXGroup;
 			children = (
+				3CDFD23AF4BBBFC74A853A8F /* SpeedControls.swift */,
 				BFAD463F53BD704A35A8E65F /* LocalDevVPN.swift */,
 				2E6BE765DFC4FB848609C8AA /* PairingDocumentPicker.swift */,
 				799094E9B1F051BEAD82D2C1 /* SavedPlace.swift */,
@@ -300,6 +306,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B4CC6626B93D6B47049D9BC5 /* SpeedControls.swift in Sources */,
+				27B695BE79F3B92C1A388373 /* MotionModel.swift in Sources */,
 				C5B176B29163E524B776757A /* BackgroundKeepAlive.swift in Sources */,
 				BAEFD7E4233656D9AE09F7EC /* CoordinateTransform.swift in Sources */,
 				4A19A245C3B57EB4E5B02CDE /* DeviceTunnel.swift in Sources */,

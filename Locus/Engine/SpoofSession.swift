@@ -5,7 +5,7 @@ import UIKit
 import UserNotifications
 
 enum TravelMode: String, CaseIterable, Identifiable {
-    case walk, run, cycle, drive
+    case walk, run, cycle, drive, custom
 
     var id: String { rawValue }
 
@@ -15,6 +15,7 @@ enum TravelMode: String, CaseIterable, Identifiable {
         case .run: return String(localized: "Run")
         case .cycle: return String(localized: "Cycle")
         case .drive: return String(localized: "Drive")
+        case .custom: return String(localized: "Custom")
         }
     }
 
@@ -24,6 +25,7 @@ enum TravelMode: String, CaseIterable, Identifiable {
         case .run: return "figure.run"
         case .cycle: return "bicycle"
         case .drive: return "car.fill"
+        case .custom: return "speedometer"
         }
     }
 
@@ -34,12 +36,13 @@ enum TravelMode: String, CaseIterable, Identifiable {
         case .run: return 3.3
         case .cycle: return 6.5
         case .drive: return 13.4
+        case .custom: return 5.0 / 3.6
         }
     }
 
     var mkTransportType: MKDirectionsTransportType {
         switch self {
-        case .walk, .run: return .walking
+        case .walk, .run, .custom: return .walking
         case .cycle, .drive: return .automobile
         }
     }
@@ -73,7 +76,22 @@ final class SpoofSession: ObservableObject {
     @Published var status: SpoofStatus = .idle
     @Published var pin: CLLocationCoordinate2D?
     @Published var simulated: CLLocationCoordinate2D?
-    @Published var travelMode: TravelMode = .walk
+    @Published var travelMode: TravelMode = .walk {
+        didSet { UserDefaults.standard.set(travelMode.rawValue, forKey: "locus.travelMode") }
+    }
+    @Published var motionSettings = MotionSettings.load() {
+        didSet { motionSettings.save() }
+    }
+    /// Unperturbed source for movement, history, and route starts.
+    private(set) var idealCoordinate: CLLocationCoordinate2D?
+
+    var baseSpeed: Double {
+        travelMode == .custom ? motionSettings.normalized.customSpeedKPH / 3.6 : travelMode.baseSpeed
+    }
+
+    var roadTransportType: MKDirectionsTransportType {
+        travelMode == .custom ? (motionSettings.customRoadDriving ? .automobile : .walking) : travelMode.mkTransportType
+    }
     @Published var mapStyleIndex: Int = 0
     @Published var lastError: String?
     @Published var isBusy = false
@@ -84,8 +102,12 @@ final class SpoofSession: ObservableObject {
 
     private var resendTimer: Timer?
     private var healthTimer: Timer?
-    private var joystickTimer: Timer?
-    private var routeTask: Task<Void, Never>?
+    private var motionTimer: Timer?
+    private var routePlayback: RoutePlayback?
+    private var variation = MotionVariation()
+    private var driftOffset = (east: 0.0, north: 0.0)
+    private var lastMotionTime = ProcessInfo.processInfo.systemUptime
+    private var generation = UUID()
     private var backgroundTask = UIBackgroundTaskIdentifier.invalid
     private var joystickVector: CGVector = .zero
     private let locationKeeper = BackgroundKeepAlive()
@@ -96,6 +118,7 @@ final class SpoofSession: ObservableObject {
     init() {
         favorites = SavedPlace.load(key: favoritesKey)
         recents = SavedPlace.load(key: recentsKey)
+        travelMode = TravelMode(rawValue: UserDefaults.standard.string(forKey: "locus.travelMode") ?? "") ?? .walk
     }
 
     var isSpoofing: Bool {
@@ -109,14 +132,19 @@ final class SpoofSession: ObservableObject {
             lastError = String(localized: "Import an RPPairing file in Settings first.")
             return
         }
-        pin = coordinate
+        cancelMovement()
+        variation = MotionVariation()
+        driftOffset = (0, 0)
         apply(coordinate, pairing: pairing, markRecent: true)
     }
 
     func stop(pairing: PairingStore) {
-        routeTask?.cancel()
-        routeTask = nil
-        stopJoystick()
+        cancelMovement()
+        motionTimer?.invalidate()
+        motionTimer = nil
+        generation = UUID()
+        variation = MotionVariation()
+        driftOffset = (0, 0)
         stopResend()
         stopHealth()
         isBusy = true
@@ -125,6 +153,7 @@ final class SpoofSession: ObservableObject {
         switch result {
         case .success:
             simulated = nil
+            idealCoordinate = nil
             status = .idle
             endBackground()
             // Keep location updates running so the map puck / locate button
@@ -134,6 +163,7 @@ final class SpoofSession: ObservableObject {
             lastError = error.localizedDescription
             status = .dropped(error.localizedDescription)
             postDropNotification(error.localizedDescription)
+            endBackground()
         }
     }
 
@@ -152,21 +182,18 @@ final class SpoofSession: ObservableObject {
             lastError = String(localized: "Import an RPPairing file in Settings first.")
             return
         }
-        let start = simulated ?? pin ?? locationKeeper.lastKnownCoordinate
+        let start = idealCoordinate ?? pin ?? locationKeeper.lastKnownCoordinate
         guard let start else {
             lastError = String(localized: "Drop a pin or teleport somewhere before using the joystick.")
             return
         }
-        if simulated == nil {
+        cancelMovement()
+        if simulated == nil || status.isDropped {
             apply(start, pairing: pairing, markRecent: false)
         }
+        guard status == .active else { return }
         joystickActive = true
-        joystickTimer?.invalidate()
-        joystickTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.tickJoystick(pairing: pairing)
-            }
-        }
+        lastMotionTime = ProcessInfo.processInfo.systemUptime
     }
 
     func updateJoystick(vector: CGVector) {
@@ -176,45 +203,21 @@ final class SpoofSession: ObservableObject {
     func stopJoystick() {
         joystickActive = false
         joystickVector = .zero
-        joystickTimer?.invalidate()
-        joystickTimer = nil
+    }
+
+    private func cancelMovement() {
+        routePlayback = nil
+        stopJoystick()
     }
 
     func followRoute(_ coordinates: [CLLocationCoordinate2D], pairing: PairingStore) {
-        guard pairing.hasPairingFile, coordinates.count >= 2 else { return }
-        routeTask?.cancel()
-        stopJoystick()
-        let mode = travelMode
-        routeTask = Task { [weak self] in
-            guard let self else { return }
-            var previous = coordinates[0]
-            await MainActor.run {
-                self.apply(previous, pairing: pairing, markRecent: true)
-            }
-            for next in coordinates.dropFirst() {
-                if Task.isCancelled { break }
-                let distance = CLLocation(latitude: previous.latitude, longitude: previous.longitude)
-                    .distance(from: CLLocation(latitude: next.latitude, longitude: next.longitude))
-                var speed = mode.baseSpeed * Double.random(in: 0.88...1.12)
-                speed = max(0.8, speed)
-                let stepMeters: CLLocationDistance = min(12, max(4, speed * 0.5))
-                let steps = max(1, Int(ceil(distance / stepMeters)))
-                for i in 1...steps {
-                    if Task.isCancelled { break }
-                    let t = Double(i) / Double(steps)
-                    let coord = CLLocationCoordinate2D(
-                        latitude: previous.latitude + (next.latitude - previous.latitude) * t,
-                        longitude: previous.longitude + (next.longitude - previous.longitude) * t
-                    )
-                    let delay = stepMeters / speed
-                    try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                    await MainActor.run {
-                        self.apply(coord, pairing: pairing, markRecent: false)
-                    }
-                }
-                previous = next
-            }
-        }
+        guard pairing.hasPairingFile,
+              let playback = RoutePlayback(points: coordinates.map(MotionPoint.init)) else { return }
+        cancelMovement()
+        apply(coordinates[0], pairing: pairing, markRecent: true)
+        guard status == .active else { return }
+        routePlayback = playback
+        lastMotionTime = ProcessInfo.processInfo.systemUptime
     }
 
     func addFavorite(name: String, coordinate: CLLocationCoordinate2D) {
@@ -291,17 +294,20 @@ final class SpoofSession: ObservableObject {
         if status == .idle || status.isDropped {
             status = .connecting
         }
+        let output = MotionPoint(coordinate).offset(east: driftOffset.east, north: driftOffset.north).coordinate
+        DeveloperTunnelMonitor.shared.prepareForSimulation()
         isBusy = true
         let result = LocationEngine.set(
-            latitude: coordinate.latitude,
-            longitude: coordinate.longitude,
+            latitude: output.latitude,
+            longitude: output.longitude,
             pairingPath: pairing.pairingPath,
             deviceIP: TunnelConfig.targetIP
         )
         isBusy = false
         switch result {
         case .success:
-            simulated = coordinate
+            simulated = output
+            idealCoordinate = coordinate
             pin = coordinate
             status = .active
             lastError = nil
@@ -309,10 +315,12 @@ final class SpoofSession: ObservableObject {
             locationKeeper.start()
             startResend(pairing: pairing)
             startHealth(pairing: pairing)
+            startMotion(pairing: pairing)
             if markRecent {
                 pushRecent(coordinate)
             }
         case .failure(let error):
+            cancelMovement()
             lastError = error.localizedDescription
             if simulated != nil {
                 status = .dropped(error.localizedDescription)
@@ -323,32 +331,75 @@ final class SpoofSession: ObservableObject {
         }
     }
 
-    private func tickJoystick(pairing: PairingStore) {
-        guard joystickActive, let current = simulated else { return }
-        let magnitude = hypot(joystickVector.dx, joystickVector.dy)
-        guard magnitude > 0.08 else { return }
-        let nx = joystickVector.dx / magnitude
-        let ny = -joystickVector.dy / magnitude
-        let speed = travelMode.baseSpeed * min(1.0, magnitude) * Double.random(in: 0.9...1.1)
-        let dt = 0.25
-        let meters = speed * dt
-        let next = offset(coordinate: current, eastMeters: nx * meters, northMeters: ny * meters)
-        apply(next, pairing: pairing, markRecent: false)
+    private func startMotion(pairing: PairingStore) {
+        guard motionTimer == nil else { return }
+        lastMotionTime = ProcessInfo.processInfo.systemUptime
+        let token = generation
+        let timer = Timer(timeInterval: 0.25, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                guard let self, self.generation == token else { return }
+                self.tickMotion(pairing: pairing)
+            }
+        }
+        motionTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
+    }
+
+    private func tickMotion(pairing: PairingStore) {
+        let now = ProcessInfo.processInfo.systemUptime
+        let dt = max(0, now - lastMotionTime)
+        lastMotionTime = now
+        guard status == .active, let ideal = idealCoordinate else { return }
+        let noise = variation.update(seconds: dt, settings: motionSettings)
+        let oldOffset = driftOffset
+        driftOffset = (noise.east, noise.north)
+        var next = MotionPoint(ideal)
+        var moved = false
+        if var playback = routePlayback {
+            playback.advance(meters: baseSpeed * noise.multiplier * dt)
+            next = playback.position
+            routePlayback = playback.finished ? nil : playback
+            moved = true
+        } else if joystickActive {
+            let magnitude = hypot(joystickVector.dx, joystickVector.dy)
+            if magnitude > 0.08 {
+                let meters = baseSpeed * noise.multiplier * min(1, magnitude) * dt
+                next = next.offset(east: joystickVector.dx / magnitude * meters,
+                                   north: -joystickVector.dy / magnitude * meters)
+                moved = true
+            }
+        }
+        if moved || driftOffset.east != oldOffset.east || driftOffset.north != oldOffset.north {
+            // Idle drift must not move a pin the user is placing elsewhere on the map.
+            let selectedPin = pin
+            apply(next.coordinate, pairing: pairing, markRecent: false)
+            if !moved { pin = selectedPin }
+        }
     }
 
     private func startResend(pairing: PairingStore) {
-        resendTimer?.invalidate()
-        resendTimer = Timer.scheduledTimer(withTimeInterval: 8, repeats: true) { [weak self] _ in
+        guard resendTimer == nil else { return }
+        let token = generation
+        let timer = Timer(timeInterval: 8, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                guard let self, let sim = self.simulated else { return }
-                _ = LocationEngine.set(
+                guard let self, self.generation == token, self.status == .active,
+                      let sim = self.simulated else { return }
+                let result = LocationEngine.set(
                     latitude: sim.latitude,
                     longitude: sim.longitude,
                     pairingPath: pairing.pairingPath,
                     deviceIP: TunnelConfig.targetIP
                 )
+                if case .failure(let error) = result {
+                    self.cancelMovement()
+                    self.lastError = error.localizedDescription
+                    self.status = .dropped(error.localizedDescription)
+                    self.postDropNotification(error.localizedDescription)
+                }
             }
         }
+        resendTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
     }
 
     private func stopResend() {
@@ -357,19 +408,25 @@ final class SpoofSession: ObservableObject {
     }
 
     private func startHealth(pairing: PairingStore) {
-        healthTimer?.invalidate()
-        healthTimer = Timer.scheduledTimer(withTimeInterval: 12, repeats: true) { [weak self] _ in
+        guard healthTimer == nil else { return }
+        let token = generation
+        let timer = Timer(timeInterval: 12, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                guard let self, let sim = self.simulated else { return }
+                guard let self, self.generation == token, let ideal = self.idealCoordinate else { return }
+                let selectedPin = self.pin
                 if case .dropped = self.status {
                     self.status = .reconnecting
-                    self.apply(sim, pairing: pairing, markRecent: false)
+                    self.apply(ideal, pairing: pairing, markRecent: false)
                 } else if !LocationEngine.isSessionActive, self.isSpoofing {
+                    self.cancelMovement()
                     self.status = .reconnecting
-                    self.apply(sim, pairing: pairing, markRecent: false)
+                    self.apply(ideal, pairing: pairing, markRecent: false)
                 }
+                self.pin = selectedPin
             }
         }
+        healthTimer = timer
+        RunLoop.main.add(timer, forMode: .common)
     }
 
     private func stopHealth() {
@@ -421,11 +478,14 @@ final class SpoofSession: ObservableObject {
         let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
         UNUserNotificationCenter.current().add(request)
     }
+}
 
-    private func offset(coordinate: CLLocationCoordinate2D, eastMeters: Double, northMeters: Double) -> CLLocationCoordinate2D {
-        let earth = 6378137.0
-        let dLat = northMeters / earth * (180 / .pi)
-        let dLon = eastMeters / (earth * cos(coordinate.latitude * .pi / 180)) * (180 / .pi)
-        return CLLocationCoordinate2D(latitude: coordinate.latitude + dLat, longitude: coordinate.longitude + dLon)
+extension MotionPoint {
+    init(_ coordinate: CLLocationCoordinate2D) {
+        self.init(latitude: coordinate.latitude, longitude: coordinate.longitude)
+    }
+
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
 }

@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 struct SettingsView: View {
     @EnvironmentObject private var pairing: PairingStore
     @EnvironmentObject private var session: SpoofSession
+    @EnvironmentObject private var tunnel: DeveloperTunnelMonitor
     @Environment(\.dismiss) private var dismiss
 
     @AppStorage(CoordinateTransform.defaultsKey) private var coordinateMode = CoordinateTransform.Mode.none.rawValue
@@ -23,6 +24,19 @@ struct SettingsView: View {
         let short = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "—"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""
         return build.isEmpty ? short : "\(short) (\(build))"
+    }
+
+    private var tunnelAvailable: Bool {
+        session.status == .active || tunnel.probe.availability == .reachable
+    }
+
+    private var tunnelStatus: String {
+        if session.status == .active { return String(localized: "Connected") }
+        switch tunnel.probe.availability {
+        case .checking: return String(localized: "Checking developer tunnel…")
+        case .reachable: return String(localized: "Endpoint reachable")
+        case .unreachable: return String(localized: "Developer tunnel not reachable")
+        }
     }
 
     var body: some View {
@@ -70,15 +84,24 @@ struct SettingsView: View {
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
                         .onSubmit {
-                            TunnelConfig.setTargetIP(tunnelIP)
+                            if !session.isSpoofing && !session.isBusy { TunnelConfig.setTargetIP(tunnelIP) }
                         }
+                        .disabled(session.isSpoofing || session.isBusy)
                     LabeledContent(String(localized: "Status")) {
-                        Text(LocalDevVPN.isConnected ? String(localized: "Connected") : String(localized: "Not connected"))
-                            .foregroundStyle(LocalDevVPN.isConnected ? LocusTheme.statusGood : LocusTheme.statusWarn)
+                        Text(tunnelStatus)
+                            .foregroundStyle(tunnelAvailable ? LocusTheme.statusGood : LocusTheme.statusWarn)
                     }
                     Button(String(localized: "Save tunnel IP")) {
                         TunnelConfig.setTargetIP(tunnelIP)
                     }
+                    .disabled(session.isSpoofing || session.isBusy)
+                    LabeledContent(String(localized: "Tunnel endpoint"), value: "\(TunnelConfig.targetIP):\(TunnelConfig.servicePort)")
+                        .font(.subheadline.monospacedDigit())
+                    Button(String(localized: "Check developer tunnel")) {
+                        if !session.isSpoofing && !session.isBusy { TunnelConfig.setTargetIP(tunnelIP) }
+                        tunnel.refresh(force: true)
+                    }
+                    .disabled(tunnel.probe.pending)
                     Button {
                         if localDevVPNInstalled {
                             LocalDevVPN.openInstalled()
@@ -94,7 +117,7 @@ struct SettingsView: View {
                 } header: {
                     Text(String(localized: "Tunnel"))
                 } footer: {
-                    Text(String(localized: "Connect LocalDevVPN before teleporting. Default tunnel IP is 10.7.0.1. Start a spoof on Wi‑Fi first; it can keep working on cellular afterward."))
+                    Text(String(localized: "Use LocalDevVPN or a compatible VPN such as Shadowrocket with an included route to 10.7.0.1/32 (or your custom tunnel IP). Endpoint reachability does not verify pairing. Stop spoofing before changing the tunnel IP. Start spoofing on Wi‑Fi first."))
                 }
 
                 Section {
@@ -109,6 +132,32 @@ struct SettingsView: View {
                 } footer: {
                     Text(String(localized: "Off by default. Converts only coordinates sent to the device; saved places and GPX remain unchanged. Use WGS-84 → GCJ-02 or BD-09 only when the destination expects that system. For a GCJ-02 map pin sent to GPS, use GCJ-02 → WGS-84. Stop spoofing before changing this setting. Coverage uses an approximate China bounding box; leave it off elsewhere, including border areas."))
                 }
+
+                Section {
+                    Toggle(String(localized: "Random location drift"), isOn: $session.motionSettings.driftEnabled)
+                    if session.motionSettings.driftEnabled {
+                        NumericSettingRow(title: String(localized: "Maximum drift radius"), unit: "m",
+                                          value: $session.motionSettings.driftRadius, range: 1...100, step: 1,
+                                          help: String(localized: "Drift stays near the ideal location without accumulating. Applies while stationary and moving."))
+                    }
+                    Toggle(String(localized: "Random speed variation"), isOn: $session.motionSettings.speedVariationEnabled)
+                    if session.motionSettings.speedVariationEnabled {
+                        NumericSettingRow(title: String(localized: "Speed variation"), unit: "%",
+                                          value: $session.motionSettings.speedVariationPercent, range: 0...90, step: 1,
+                                          help: String(localized: "Varies above and below the base speed. At 5 km/h, ±10% means 4.5–5.5 km/h."), prefix: "±")
+                    }
+                    Button(String(localized: "Restore simulation defaults")) {
+                        session.motionSettings.driftEnabled = false
+                        session.motionSettings.driftRadius = 3
+                        session.motionSettings.speedVariationEnabled = true
+                        session.motionSettings.speedVariationPercent = 10
+                    }
+                } header: {
+                    Text(String(localized: "Random simulation"))
+                } footer: {
+                    Text(String(localized: "Smooth changes every 3 seconds. Drift is off by default (3 m); speed variation is on (±10%). Changes apply immediately. Saved places and GPX keep their original coordinates."))
+                }
+                .tint(LocusTheme.accent)
 
                 Section(String(localized: "Privacy")) {
                     Text(String(localized: "Fully on-device. Favorites and recents stay in UserDefaults. No analytics, no accounts, nothing uploaded."))
@@ -144,7 +193,7 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(String(localized: "Done")) {
-                        TunnelConfig.setTargetIP(tunnelIP)
+                        if !session.isSpoofing && !session.isBusy { TunnelConfig.setTargetIP(tunnelIP) }
                         dismiss()
                     }
                 }

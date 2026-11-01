@@ -46,7 +46,7 @@ Locus uses the MIT-licensed [idevice](https://github.com/jkcoxson/idevice) FFI t
 
 **iOS 18–26:** import an **RPPairing** file once from [idevice_pair](https://github.com/jkcoxson/idevice_pair/releases).
 
-Also install **[LocalDevVPN](https://apps.apple.com/us/app/localdevvpn/id6755608044)** (loopback tunnel, default `10.7.0.1`), then sideload Locus.
+Use **[LocalDevVPN](https://apps.apple.com/us/app/localdevvpn/id6755608044)** or a compatible VPN such as Shadowrocket with a `10.7.0.1/32` included route. The endpoint defaults to `10.7.0.1`. LocalDevVPN is optional; see [SETUP.md](SETUP.md) for detection details.
 
 Start a teleport on Wi‑Fi first; the session can keep working on cellular afterward.
 
@@ -127,3 +127,77 @@ Teleport and another location app, then check Stop, joystick movement, route pla
 background resends, and a saved favorite after relaunch. Compare conversion Off and the
 appropriate direction separately. A successful build or conversion check does not
 verify the developer tunnel or the receiving app's location update behavior.
+
+## Custom speed and random simulation
+
+The speedometer beside Walk / Run / Cycle / Drive opens **Custom speed**. Set
+0.1–300 km/h (default 5 km/h); the map tray and Routes share the same speed.
+Save to select Custom, or Cancel to keep your current mode. Changes take effect
+while moving. For Custom road routes, choose **Walking roads** or **Driving roads**
+in Routes; changing speed does not rebuild an existing route.
+
+**Settings → Random simulation** controls smooth, three-second random changes:
+
+- Location drift is off by default, with a 3 m maximum radius (adjustable 1–100 m).
+  It applies while stationary, using the joystick, and following routes, and never
+  accumulates beyond the radius around the ideal location.
+- Speed variation is on by default at ±10% (adjustable 0–90%). For example,
+  5 km/h ±10% gives 4.5–5.5 km/h, before joystick displacement scales the speed.
+
+Turning an option off clears its random effect at the next update. Settings and
+custom speed persist after relaunch. Favorites, recents, and exported GPX keep
+ideal coordinates; the spoof marker shows the location sent to the engine before
+any optional coordinate conversion. Route and joystick motion stop on a location
+write failure; after reconnection, start movement again explicitly.
+
+### Build an unsigned IPA without publishing a Release
+
+On macOS with Xcode 26.3 and XcodeGen installed:
+
+```sh
+scripts/build-unsigned-ipa.sh
+```
+
+Outputs: `outputs/Locus-unsigned.ipa`, `SHA256SUMS`, source revision/status, and
+`build.log`. This runs motion/coordinate checks, regenerates the Xcode project,
+archives a Release device app with `CODE_SIGNING_ALLOWED=NO`, and packages it under
+`Payload/Locus.app`. It needs no signing certificate. Signing or a compatible
+container is still needed to run the resulting IPA.
+
+Alternatively, push this source to a repository you can write, open **Actions →
+Build unsigned IPA (artifact) → Run workflow**, and download the artifact. It
+contains the IPA and build evidence and expires after 14 days. This workflow only
+needs repository read permission and does not publish a Release.
+
+Run the standalone motion checks on Linux or macOS with Swift installed:
+
+```sh
+swiftc -module-cache-path /tmp/locus-module-cache \
+  Locus/Engine/MotionModel.swift Tests/MotionChecks.swift -o /tmp/locus-motion-checks
+/tmp/locus-motion-checks
+```
+
+On a paired iPhone, also check: a fixed teleport with drift on/off; full and partial
+joystick displacement; road, drawn and GPX routes; editing speed during playback;
+Stop and switching between modes; tunnel failure and reconnect; background and
+resume. Check Chinese/English, large text and a small screen. These require a
+macOS/iPhone environment and are not established by calculation checks alone.
+
+## Developer tunnel compatibility
+
+Tunnel status is based on TCP reachability of the configured IP on port 49152,
+not the VPN app or its interface address. Shadowrocket and other VPNs with a
+compatible developer service and included endpoint route can therefore be used
+without LocalDevVPN. Endpoint reachability is advisory; Teleport still validates
+the pairing and developer protocol. See [SETUP.md](SETUP.md) for checks and limits.
+
+Run the independent tunnel state checks with:
+
+```sh
+swiftc -module-cache-path /tmp/locus-module-cache -D TUNNEL_CHECKS \
+  Locus/Engine/DeviceTunnel.swift Tests/TunnelChecks.swift -o /tmp/locus-tunnel-checks
+/tmp/locus-tunnel-checks
+```
+
+See [GitHub build access](docs/github-build-access.md) for credentials needed to
+push changes, run the unsigned IPA workflow, and retrieve its artifact.

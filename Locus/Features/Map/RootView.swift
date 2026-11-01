@@ -1,5 +1,4 @@
 import SwiftUI
-import NetworkExtension
 
 struct RootView: View {
     @EnvironmentObject private var session: SpoofSession
@@ -11,7 +10,7 @@ struct RootView: View {
         // Bottom chrome is a sibling overlay aligned to the bottom — no full-screen
         // Spacer layer that can steal / pass map taps through the tray.
         ZStack(alignment: .bottom) {
-            MapHomeView()
+            MapHomeView(onOpenSettings: { showSettings = true })
 
             BottomControlsView(
                 showSettings: $showSettings,
@@ -39,20 +38,19 @@ struct RootView: View {
 
 struct StatusBarView: View {
     @EnvironmentObject private var session: SpoofSession
-    @Environment(\.scenePhase) private var scenePhase
-
-    @State private var tunnelConnected = LocalDevVPN.isConnected
+    @EnvironmentObject private var tunnel: DeveloperTunnelMonitor
+    var onOpenSettings: () -> Void
 
     private enum Display {
         case notSpoofing
-        case connectVPN
+        case tunnelUnavailable
         case status(String)
     }
 
     private var display: Display {
         switch session.status {
         case .idle:
-            return tunnelConnected ? .notSpoofing : .connectVPN
+            return tunnel.probe.availability == .reachable ? .notSpoofing : .tunnelUnavailable
         case .connecting:
             return .status(String(localized: "Connecting…"))
         case .active:
@@ -68,7 +66,7 @@ struct StatusBarView: View {
         switch display {
         case .notSpoofing:
             return Color.primary.opacity(0.55)
-        case .connectVPN:
+        case .tunnelUnavailable:
             return LocusTheme.statusWarn
         case .status:
             switch session.status {
@@ -83,38 +81,23 @@ struct StatusBarView: View {
     private var title: String {
         switch display {
         case .notSpoofing: return String(localized: "Not Spoofing")
-        case .connectVPN: return String(localized: "Connect LocalDevVPN")
+        case .tunnelUnavailable:
+            return tunnel.probe.availability == .checking
+                ? String(localized: "Checking developer tunnel…")
+                : String(localized: "Developer tunnel not reachable")
         case .status(let text): return text
         }
     }
 
     var body: some View {
         Group {
-            if case .connectVPN = display {
-                Button(action: LocalDevVPN.openOrInstall) {
+            if case .tunnelUnavailable = display {
+                Button(action: onOpenSettings) {
                     statusContent
                 }
                 .buttonStyle(.plain)
             } else {
                 statusContent
-            }
-        }
-        .onAppear { refreshTunnel() }
-        .onChange(of: scenePhase) { _, phase in
-            if phase == .active { refreshTunnel() }
-        }
-        .onChange(of: session.status) { _, _ in
-            refreshTunnel()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .NEVPNStatusDidChange)) { _ in
-            // LocalDevVPN connection changes show up here even though we don’t own the VPN.
-            refreshTunnel()
-        }
-        .task(id: scenePhase) {
-            guard scenePhase == .active else { return }
-            while !Task.isCancelled {
-                try? await Task.sleep(nanoseconds: 2_000_000_000)
-                refreshTunnel()
             }
         }
     }
@@ -132,7 +115,7 @@ struct StatusBarView: View {
 
             Spacer(minLength: 8)
 
-            if case .connectVPN = display {
+            if case .tunnelUnavailable = display {
                 Image(systemName: "lock.shield.fill")
                     .font(.caption.weight(.semibold))
                     .foregroundStyle(LocusTheme.accent)
@@ -148,10 +131,6 @@ struct StatusBarView: View {
         .padding(.vertical, 10)
         .locusGlass(.clear, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-    }
-
-    private func refreshTunnel() {
-        tunnelConnected = LocalDevVPN.isConnected
     }
 }
 
@@ -173,26 +152,7 @@ struct BottomControlsView: View {
                 .frame(maxWidth: .infinity, alignment: .trailing)
             }
 
-            HStack(spacing: 8) {
-                ForEach(TravelMode.allCases) { mode in
-                    let selected = session.travelMode == mode
-                    Button {
-                        session.travelMode = mode
-                    } label: {
-                        Image(systemName: mode.icon)
-                            .font(.body.weight(.semibold))
-                            .foregroundStyle(selected ? .black : .primary)
-                            .frame(width: 44, height: 40)
-                            .background(
-                                Capsule().fill(selected ? LocusTheme.accent : Color.primary.opacity(0.08))
-                            )
-                            .contentShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(mode.title)
-                }
-                Spacer(minLength: 0)
-            }
+            SpeedControls()
 
             HStack(spacing: 10) {
                 trayIcon("gearshape.fill") { showSettings = true }

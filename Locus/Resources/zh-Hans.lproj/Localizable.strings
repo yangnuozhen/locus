@@ -169,3 +169,43 @@
 "iPhone connected" = "iPhone 已连接";
 "idevice DVT location simulation" = "idevice DVT 定位模拟";
 "locus, n. — a place. From the Latin for where you are." = "locus，名词，意为“地点”，源于拉丁语，指你所在之处。";
+
+// Custom movement and random simulation.
+"Custom" = "自定义";
+"Custom speed" = "自定义速度";
+"Movement speed" = "行动速度";
+"Road type" = "道路类型";
+"Walking roads" = "步行道路";
+"Driving roads" = "驾车道路";
+"Shared by joystick and routes. Changes apply while moving." = "摇杆和路线共用此速度，行进中修改也会生效。";
+"Fine adjustment" = "微调数值";
+"Allowed range: %@–%@ %@" = "允许范围：%@–%@ %@";
+"Enter a number within the allowed range." = "请输入允许范围内的数值。";
+"Random location drift" = "位置随机漂移";
+"Maximum drift radius" = "最大漂移半径";
+"Drift stays near the ideal location without accumulating. Applies while stationary and moving." = "始终在理想位置附近漂移，不会累积偏移。停留和行进时均生效。";
+"Random speed variation" = "行动速度随机变化";
+"Speed variation" = "速度变化幅度";
+"Varies above and below the base speed. At 5 km/h, ±10% means 4.5–5.5 km/h." = "以基础速度为中心上下浮动。例如 5 km/h、±10% 对应 4.5–5.5 km/h。";
+"Restore simulation defaults" = "恢复随机模拟默认值";
+"Random simulation" = "随机模拟";
+"Smooth changes every 3 seconds. Drift is off by default (3 m); speed variation is on (±10%). Changes apply immediately. Saved places and GPX keep their original coordinates." = "每 3 秒平滑变化。漂移默认关闭（3 米），速度变化默认开启（±10%）。修改即时生效；收藏、历史与 GPX 保留原始坐标。";
+"Routes follow the selected road type. Adjust drift and speed variation in Settings." = "路线按所选道路类型规划。可在设置中调整位置漂移和速度随机变化。";
+
+// Provider-independent developer tunnel.
+"Checking developer tunnel…" = "正在检测开发者隧道…";
+"Developer tunnel not reachable" = "开发者隧道不可达";
+"Endpoint reachable" = "端点可达";
+"Tunnel endpoint" = "隧道端点";
+"Check developer tunnel" = "检测开发者隧道";
+"Use LocalDevVPN or a compatible VPN such as Shadowrocket with an included route to 10.7.0.1/32 (or your custom tunnel IP). Endpoint reachability does not verify pairing. Stop spoofing before changing the tunnel IP. Start spoofing on Wi‑Fi first." = "可使用 LocalDevVPN，或在 Shadowrocket 等兼容 VPN 中开启指向 10.7.0.1/32（或自定义隧道 IP）的包含路由。端点可达不代表配对已验证。更改隧道 IP 前请先停止模拟定位。首次模拟定位请先连接 Wi‑Fi。";
+"Connect a developer tunnel" = "连接开发者隧道";
+"Use LocalDevVPN, or enable a compatible VPN such as Shadowrocket with an included 10.7.0.1/32 route. LocalDevVPN is optional." = "可使用 LocalDevVPN，也可在 Shadowrocket 等兼容 VPN 中启用包含 10.7.0.1/32 路由的开发者隧道。无需额外安装 LocalDevVPN。";
+"Other VPN apps" = "其他 VPN 应用";
+"Enable the developer tunnel feature and include the tunnel IP as a /32 route in your VPN configuration." = "在兼容 VPN 中开启开发者隧道功能，并将隧道 IP 以 /32 路由加入包含路由。";
+"Tunnel status" = "隧道状态";
+"Continue to map" = "继续前往地图";
+"Next we’ll set up a developer tunnel." = "接下来设置开发者隧道。";
+"RPPairing file saved. Connect a compatible developer tunnel, then teleport." = "RPPairing 文件已保存。连接兼容的开发者隧道后即可模拟定位。";
+"RPPairing is ready. Connect a compatible developer tunnel, then teleport." = "RPPairing 已就绪。连接兼容的开发者隧道后即可模拟定位。";
+"Could not open the developer tunnel. Enable LocalDevVPN or a compatible VPN route to the configured tunnel IP, then retry on Wi‑Fi." = "无法打开开发者隧道。请开启 LocalDevVPN 或兼容 VPN 中指向所设隧道 IP 的路由，并在 Wi‑Fi 下重试。";

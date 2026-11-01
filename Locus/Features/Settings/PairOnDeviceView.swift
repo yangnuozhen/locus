@@ -175,8 +175,8 @@ struct PairOnDeviceView: View {
                 Text(String(localized: "Paired"))
                     .font(.title3.weight(.bold))
                 Text(mode == .embedded
-                     ? String(localized: "Next we’ll set up LocalDevVPN.")
-                     : String(localized: "RPPairing file saved. Connect LocalDevVPN, then teleport."))
+                     ? String(localized: "Next we’ll set up a developer tunnel.")
+                     : String(localized: "RPPairing file saved. Connect a compatible developer tunnel, then teleport."))
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)

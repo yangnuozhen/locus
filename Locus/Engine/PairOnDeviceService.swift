@@ -126,7 +126,7 @@ final class PairOnDeviceService: ObservableObject {
         teardown()
         Self.postPlainNotification(
             title: String(localized: "Locus paired"),
-            body: String(localized: "RPPairing is ready. Connect LocalDevVPN, then teleport.")
+            body: String(localized: "RPPairing is ready. Connect a compatible developer tunnel, then teleport.")
         )
     }
 
