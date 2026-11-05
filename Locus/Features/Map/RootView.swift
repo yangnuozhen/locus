@@ -84,9 +84,7 @@ struct StatusBarView: View {
         switch display {
         case .notSpoofing: return String(localized: "Not Spoofing")
         case .tunnelUnavailable:
-            return tunnel.probe.availability == .checking
-                ? String(localized: "Checking developer tunnel…")
-                : String(localized: "Developer tunnel not reachable")
+            return tunnel.statusLabel
         case .status(let text): return text
         }
     }
@@ -189,7 +187,7 @@ struct BottomControlsView: View {
                 }
                 .buttonStyle(.plain)
 
-                if session.isSpoofing {
+                if session.isSpoofing || session.isBusy {
                     Button {
                         session.stop(pairing: pairing)
                     } label: {

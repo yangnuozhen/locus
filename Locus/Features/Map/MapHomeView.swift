@@ -531,7 +531,7 @@ struct MapHomeView: View {
             return
         }
         session.followRoute(routeCoords, pairing: pairing)
-        if session.status == .active { showRouteSheet = false }
+        if session.status == .active || session.isBusy { showRouteSheet = false }
     }
 
     private func importGPX(_ url: URL) {

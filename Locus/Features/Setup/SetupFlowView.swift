@@ -322,9 +322,7 @@ struct SetupFlowView: View {
                                detail: String(localized: "Enable the developer tunnel feature and include the tunnel IP as a /32 route in your VPN configuration."))
                         tipRow(systemImage: tunnel.probe.availability == .reachable ? "checkmark.circle.fill" : "network",
                                title: String(localized: "Tunnel status"),
-                               detail: tunnel.probe.availability == .reachable ? String(localized: "Endpoint reachable")
-                                   : (tunnel.probe.availability == .checking ? String(localized: "Checking developer tunnel…")
-                                       : String(localized: "Developer tunnel not reachable")))
+                               detail: tunnel.statusLabel)
                         tipRow(systemImage: "wifi", title: String(localized: "First teleport on Wi‑Fi"), detail: String(localized: "Start your first teleport while on Wi‑Fi. After that, it can keep working on cellular."))
                     }
                     .padding(18)

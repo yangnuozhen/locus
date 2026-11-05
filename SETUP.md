@@ -43,28 +43,34 @@ On Wi‑Fi: drop a pin → **Teleport**. Then joystick / routes / GPX work; the 
 
 ### Shadowrocket and other compatible VPNs
 
-LocalDevVPN is optional. In a VPN version that supports the developer tunnel,
-activate that feature and include **`10.7.0.1/32`** in its tunnel routes. Keep
-Locus **Settings → Tunnel IP** at `10.7.0.1`, or use the matching custom endpoint.
-A general proxy rule alone does not establish a developer service.
+LocalDevVPN is optional. Enable a compatible developer tunnel and include the
+`10.7.0.1/32` route. Keep Locus's tunnel IP at `10.7.0.1` unless you use a custom
+endpoint. A route and a Remote Pairing service port are separate settings.
 
-Locus now tests TCP reachability of the configured endpoint on port `49152`
-through the system routing table. It does not require a `10.7.0.x` interface
-address, LocalDevVPN installation, or a particular VPN provider. The monitor
-refreshes on network changes, on return to the foreground, and every 8 seconds
-while foregrounded; individual probes time out after 3 seconds. Settings also has
-**Check developer tunnel**. Before a real DVT connection, Locus cancels the probe;
-while a simulation service is active, it does not create extra probe connections.
+Leave **Discover Remote Pairing port** enabled. Locus tries its per-IP last
+confirmed port (initial fallback 49152), then resolves this device's
+`_remotepairing._tcp` Bonjour service and checks candidate ports with BSD sockets.
+Discovery filters out nearby services unless their address belongs to this device
+or matches the configured target. It does not change the IP or VPN configuration.
+Startup waits up to 8 seconds for preflight; each TCP candidate has a 2-second
+budget and Bonjour browsing has a 3-second budget. An existing native simulation
+skips port discovery. Preflight and native connection use the same selected port.
 
-**Endpoint reachable** means the port accepts a TCP connection; it does not
-confirm RPPairing, the RemoteXPC handshake, or successful location injection.
-Those are verified by Teleport. A missing route or unavailable service is shown
-as **Developer tunnel not reachable**, never as a requirement to install
-LocalDevVPN. Tapping the warning opens Locus Settings. Stop spoofing before
-changing the tunnel IP.
+If discovery fails, inspect **SideStore → Connection Config → RemotePair Port**
+(the effective/discovered port, not an empty override field). Turn automatic port
+discovery off in Locus, enter that port, and save. Manual mode remains fixed until
+you enable automatic discovery again. Allow Local Network permission for Locus or
+its container; a denied Bonjour request does not prove a route is missing.
 
-On a paired iPhone verify LocalDevVPN, then repeat with LocalDevVPN off and a
-compatible Shadowrocket `10.7.0.1/32` included route on. Check cold launch,
-Settings, first-run setup, Teleport, joystick, route playback, disabling/re-enabling
-the VPN, background/foreground, and a custom tunnel IP. With no compatible tunnel,
-verify the warning and allow a normal Teleport attempt to report the actual error.
+**Remote Pairing port not verified** is an advisory result. Teleport still attempts
+the actual native connection. Its error identifies the endpoint, stage and numeric
+native code/sub-code, never pairing contents. Locus's imported RPPairing file must
+also be valid; SideStore's success alone does not establish that. Stop spoofing
+before changing endpoint settings. You can cancel a pending connection with End.
+
+On iPhone verify automatic discovery with a non-49152 service port, manual mode,
+service/port changes, foreground/background, stop during discovery, permission
+denial, and a custom IP. Then verify Teleport, joystick, route playback and a
+native pairing failure. A failed discovery must not show a fabricated connected
+state or overwrite a newer request. Return numeric error codes if a correct port
+still cannot create the DVT location service.

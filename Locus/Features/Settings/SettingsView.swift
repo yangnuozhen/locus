@@ -12,6 +12,8 @@ struct SettingsView: View {
     @State private var showPairOnDevice = false
     @State private var showNameEasterEgg = false
     @State private var tunnelIP = TunnelConfig.targetIP
+    @State private var automaticPort = TunnelConfig.portOverride == nil
+    @State private var tunnelPortText = String(TunnelConfig.servicePort)
     @State private var localDevVPNInstalled = LocalDevVPN.isInstalled
     @Environment(\.scenePhase) private var scenePhase
 
@@ -32,11 +34,87 @@ struct SettingsView: View {
 
     private var tunnelStatus: String {
         if session.status == .active { return String(localized: "Connected") }
-        switch tunnel.probe.availability {
-        case .checking: return String(localized: "Checking developer tunnel…")
-        case .reachable: return String(localized: "Endpoint reachable")
-        case .unreachable: return String(localized: "Developer tunnel not reachable")
+        return tunnel.statusLabel
+    }
+
+    private var manualPort: UInt16? {
+        guard let port = UInt16(tunnelPortText.trimmingCharacters(in: .whitespacesAndNewlines)), port > 0 else { return nil }
+        return port
+    }
+
+    private var tunnelSettingsValid: Bool {
+        TunnelConfig.isValidIPv4(tunnelIP.trimmingCharacters(in: .whitespacesAndNewlines)) &&
+            (automaticPort || manualPort != nil)
+    }
+
+    @discardableResult
+    private func saveTunnelSettings() -> Bool {
+        guard !session.isSpoofing, !session.isBusy, tunnelSettingsValid else { return false }
+        TunnelConfig.setEndpoint(tunnelIP, port: automaticPort ? nil : manualPort)
+        return true
+    }
+
+    private var probeDetail: String? {
+        switch tunnel.lastOutcome {
+        case .systemError(let code):
+            return String(format: String(localized: "TCP test %@:%u failed (errno %d). This does not prove the VPN route is missing."),
+                          tunnel.probe.target, UInt32(tunnel.probe.port), code)
+        case .timedOut:
+            return String(format: String(localized: "TCP test %@:%u timed out. Try automatic discovery or match SideStore’s current Remote Pairing port."),
+                          tunnel.probe.target, UInt32(tunnel.probe.port))
+        case .invalidAddress: return String(localized: "Tunnel IP is invalid. Check Settings → Tunnel IP (usually 10.7.0.1).")
+        default: return nil
         }
+    }
+
+    private var tunnelSection: some View {
+        Section {
+            TextField(String(localized: "Device tunnel IP"), text: $tunnelIP)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .onSubmit { saveTunnelSettings() }
+                .disabled(session.isSpoofing || session.isBusy)
+            Toggle(String(localized: "Discover Remote Pairing port"), isOn: $automaticPort)
+                .disabled(session.isSpoofing || session.isBusy)
+                .onChange(of: automaticPort) { _, automatic in
+                    if !automatic { tunnelPortText = String(TunnelConfig.servicePort) }
+                }
+            if !automaticPort {
+                TextField(String(localized: "Remote Pairing port"), text: $tunnelPortText)
+                    .keyboardType(.numberPad)
+                    .disabled(session.isSpoofing || session.isBusy)
+            }
+            if !tunnelSettingsValid {
+                Text(String(localized: "Enter a valid IPv4 address and a port from 1 to 65535."))
+                    .font(.footnote).foregroundStyle(LocusTheme.danger)
+            }
+            LabeledContent(String(localized: "Status")) {
+                Text(tunnelStatus)
+                    .foregroundStyle(tunnelAvailable ? LocusTheme.statusGood : LocusTheme.statusWarn)
+            }
+            Button(String(localized: "Save tunnel settings")) { saveTunnelSettings() }
+                .disabled(session.isSpoofing || session.isBusy || !tunnelSettingsValid)
+            LabeledContent(String(localized: "Tunnel endpoint"), value: "\(TunnelConfig.targetIP):\(TunnelConfig.servicePort)")
+                .font(.subheadline.monospacedDigit())
+            if !tunnel.probe.pending, let probeDetail, session.status != .active {
+                Text(probeDetail).font(.footnote).foregroundStyle(.secondary)
+            }
+            Button(String(localized: "Check developer tunnel")) {
+                if session.isSpoofing || session.isBusy || saveTunnelSettings() { tunnel.refresh(force: true) }
+            }
+            .disabled(tunnel.probe.pending || (!tunnelSettingsValid && !session.isSpoofing))
+            Button {
+                if localDevVPNInstalled { LocalDevVPN.openInstalled() } else { LocalDevVPN.openAppStore() }
+            } label: {
+                Label(localDevVPNInstalled ? String(localized: "Open LocalDevVPN") : String(localized: "Get LocalDevVPN (App Store)"),
+                      systemImage: localDevVPNInstalled ? "lock.shield.fill" : "arrow.down.app.fill")
+            }
+        } header: {
+            Text(String(localized: "Tunnel"))
+        } footer: {
+            Text(String(localized: "Remote Pairing ports can change. Automatic mode uses the last working port, then discovers this device’s service via Bonjour. If discovery is unavailable, enter the same port used by SideStore. The VPN route and IP stay unchanged. Allow Local Network access for Locus or its container. Stop spoofing before editing."))
+        }
+        .tint(LocusTheme.accent)
     }
 
     var body: some View {
@@ -79,46 +157,7 @@ struct SettingsView: View {
                          : String(localized: "Import an RPPairing file from idevice_pair (not a SideStore lockdown .mobiledevicepairing). If the file picker fails (common in LiveContainer), enable Fix File Picker on the app, share the file into LiveContainer → Locus, or copy the plist and use Paste."))
                 }
 
-                Section {
-                    TextField(String(localized: "Device tunnel IP"), text: $tunnelIP)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .onSubmit {
-                            if !session.isSpoofing && !session.isBusy { TunnelConfig.setTargetIP(tunnelIP) }
-                        }
-                        .disabled(session.isSpoofing || session.isBusy)
-                    LabeledContent(String(localized: "Status")) {
-                        Text(tunnelStatus)
-                            .foregroundStyle(tunnelAvailable ? LocusTheme.statusGood : LocusTheme.statusWarn)
-                    }
-                    Button(String(localized: "Save tunnel IP")) {
-                        TunnelConfig.setTargetIP(tunnelIP)
-                    }
-                    .disabled(session.isSpoofing || session.isBusy)
-                    LabeledContent(String(localized: "Tunnel endpoint"), value: "\(TunnelConfig.targetIP):\(TunnelConfig.servicePort)")
-                        .font(.subheadline.monospacedDigit())
-                    Button(String(localized: "Check developer tunnel")) {
-                        if !session.isSpoofing && !session.isBusy { TunnelConfig.setTargetIP(tunnelIP) }
-                        tunnel.refresh(force: true)
-                    }
-                    .disabled(tunnel.probe.pending)
-                    Button {
-                        if localDevVPNInstalled {
-                            LocalDevVPN.openInstalled()
-                        } else {
-                            LocalDevVPN.openAppStore()
-                        }
-                    } label: {
-                        Label(
-                            localDevVPNInstalled ? String(localized: "Open LocalDevVPN") : String(localized: "Get LocalDevVPN (App Store)"),
-                            systemImage: localDevVPNInstalled ? "lock.shield.fill" : "arrow.down.app.fill"
-                        )
-                    }
-                } header: {
-                    Text(String(localized: "Tunnel"))
-                } footer: {
-                    Text(String(localized: "Use LocalDevVPN or a compatible VPN such as Shadowrocket with an included route to 10.7.0.1/32 (or your custom tunnel IP). Endpoint reachability does not verify pairing. Stop spoofing before changing the tunnel IP. Start spoofing on Wi‑Fi first."))
-                }
+                tunnelSection
 
                 Section {
                     Picker(String(localized: "Conversion"), selection: $coordinateMode) {
@@ -193,9 +232,10 @@ struct SettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(String(localized: "Done")) {
-                        if !session.isSpoofing && !session.isBusy { TunnelConfig.setTargetIP(tunnelIP) }
+                        if !session.isSpoofing && !session.isBusy { saveTunnelSettings() }
                         dismiss()
                     }
+                    .disabled(!tunnelSettingsValid && !session.isSpoofing)
                 }
             }
             .sheet(isPresented: $showImporter) {

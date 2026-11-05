@@ -12,18 +12,21 @@ enum LocationEngineError: LocalizedError {
     case locationSet
     case locationClear
     case notActive
+    indirect case native(LocationEngineError, Int32, Int32, String)
 
     var errorDescription: String? {
         switch self {
         case .invalidCoordinate: return String(localized: "Invalid coordinates.")
         case .invalidIP: return String(localized: "Tunnel IP is invalid. Check Settings → Tunnel IP (usually 10.7.0.1).")
         case .pairingRead: return String(localized: "Could not read the RPPairing file. Generate one with idevice_pair in RPPairing mode.")
-        case .tunnelCreate: return String(localized: "Could not open the developer tunnel. Enable LocalDevVPN or a compatible VPN route to the configured tunnel IP, then retry on Wi‑Fi.")
+        case .tunnelCreate: return String(localized: "Could not establish Remote Pairing. Check the service port and this app’s RPPairing file; a working VPN route alone does not verify them.")
         case .remoteServer: return String(localized: "Connected to the tunnel but RemoteXPC handshake failed.")
         case .simulationCreate: return String(localized: "Could not open Apple’s location simulation service.")
         case .locationSet: return String(localized: "Failed to set simulated coordinates.")
         case .locationClear: return String(localized: "Failed to clear simulated location.")
         case .notActive: return String(localized: "No active simulation session.")
+        case .native(let stage, let code, let subCode, let endpoint):
+            return (stage.errorDescription ?? "") + "\n" + String(format: String(localized: "Endpoint %@ · native error %d/%d"), endpoint, code, subCode)
         }
     }
 
@@ -49,6 +52,8 @@ enum LocationEngine {
     private static var handshake: OpaquePointer?
     private static var remoteServer: OpaquePointer?
     private static var locationSimulation: OpaquePointer?
+    private static var connectedEndpoint: String?
+    private static var nativeFailure: (Int32, Int32)?
 
     private static let ok: Int32 = 0
     private static let invalidIP: Int32 = 1
@@ -59,16 +64,18 @@ enum LocationEngine {
     private static let locationSet: Int32 = 11
     private static let locationClear: Int32 = 12
 
-    static var isSessionActive: Bool { locationSimulation != nil }
+    static var isSessionActive: Bool { queue.sync { locationSimulation != nil } }
 
     static func set(latitude: Double, longitude: Double, pairingPath: String, deviceIP: String) -> Result<Void, LocationEngineError> {
         let input = CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
         guard CLLocationCoordinate2DIsValid(input) else { return .failure(.invalidCoordinate) }
         let output = CoordinateTransform.convert(input, mode: CoordinateTransform.selectedMode)
         var result: Result<Void, LocationEngineError> = .failure(.locationSet)
+        let port = TunnelConfig.servicePort
         queue.sync {
-            let code = setLocked(latitude: output.latitude, longitude: output.longitude, pairingPath: pairingPath, deviceIP: deviceIP)
-            result = code == ok ? .success(()) : .failure(.from(code: code))
+            nativeFailure = nil
+            let code = setLocked(latitude: output.latitude, longitude: output.longitude, pairingPath: pairingPath, deviceIP: deviceIP, port: port)
+            result = code == ok ? .success(()) : .failure(failure(code: code, endpoint: "\(deviceIP):\(port)"))
         }
         return result
     }
@@ -76,13 +83,28 @@ enum LocationEngine {
     static func clear() -> Result<Void, LocationEngineError> {
         var result: Result<Void, LocationEngineError> = .failure(.notActive)
         queue.sync {
+            nativeFailure = nil
+            let endpoint = connectedEndpoint ?? "\(TunnelConfig.targetIP):\(TunnelConfig.servicePort)"
             let code = clearLocked()
-            result = code == ok ? .success(()) : .failure(.from(code: code))
+            result = code == ok ? .success(()) : .failure(failure(code: code, endpoint: endpoint))
         }
         return result
     }
 
+    /// Retain only numeric native diagnostics; never pairing payloads or native messages.
+    private static func releaseError(_ error: UnsafeMutablePointer<IdeviceFfiError>) {
+        nativeFailure = (error.pointee.code, error.pointee.sub_code)
+        idevice_error_free(error)
+    }
+
+    private static func failure(code: Int32, endpoint: String) -> LocationEngineError {
+        let stage = LocationEngineError.from(code: code)
+        if let nativeFailure { return .native(stage, nativeFailure.0, nativeFailure.1, endpoint) }
+        return stage
+    }
+
     private static func cleanup() {
+        connectedEndpoint = nil
         if let locationSimulation {
             location_simulation_free(locationSimulation)
             self.locationSimulation = nil
@@ -101,25 +123,28 @@ enum LocationEngine {
         }
     }
 
-    private static func setLocked(latitude: Double, longitude: Double, pairingPath: String, deviceIP: String) -> Int32 {
+    private static func setLocked(latitude: Double, longitude: Double, pairingPath: String, deviceIP: String, port: UInt16) -> Int32 {
+        if let current = connectedEndpoint, current != "\(deviceIP):\(port)" { cleanup() }
         if let locationSimulation {
             if let err = location_simulation_set(locationSimulation, latitude, longitude) {
-                idevice_error_free(err)
+                releaseError(err)
                 cleanup()
             } else {
                 return ok
             }
         }
 
+        nativeFailure = nil
         var address = sockaddr_in()
+        address.sin_len = UInt8(MemoryLayout<sockaddr_in>.size)
         address.sin_family = sa_family_t(AF_INET)
-        address.sin_port = in_port_t(TunnelConfig.servicePort).bigEndian
+        address.sin_port = in_port_t(port).bigEndian
         let inetResult = deviceIP.withCString { inet_pton(AF_INET, $0, &address.sin_addr) }
         guard inetResult == 1 else { return invalidIP }
 
         var pairingHandle: OpaquePointer?
         if let pairingError = pairingPath.withCString({ rp_pairing_file_read($0, &pairingHandle) }) {
-            idevice_error_free(pairingError)
+            releaseError(pairingError)
             return pairingRead
         }
         guard let pairingHandle else { return pairingRead }
@@ -140,19 +165,19 @@ enum LocationEngine {
             }
         }
         if let providerError {
-            idevice_error_free(providerError)
+            releaseError(providerError)
             cleanup()
             return tunnelCreate
         }
 
         if let remoteServerError = remote_server_connect_rsd(adapter, handshake, &remoteServer) {
-            idevice_error_free(remoteServerError)
+            releaseError(remoteServerError)
             cleanup()
             return remoteServerCode
         }
 
         if let simError = location_simulation_new(remoteServer, &locationSimulation) {
-            idevice_error_free(simError)
+            releaseError(simError)
             cleanup()
             return simulationCreate
         }
@@ -160,10 +185,11 @@ enum LocationEngine {
         remoteServer = nil
 
         if let setError = location_simulation_set(locationSimulation, latitude, longitude) {
-            idevice_error_free(setError)
+            releaseError(setError)
             cleanup()
             return locationSet
         }
+        connectedEndpoint = "\(deviceIP):\(port)"
         return ok
     }
 
@@ -172,7 +198,7 @@ enum LocationEngine {
         let err = location_simulation_clear(locationSimulation)
         cleanup()
         if let err {
-            idevice_error_free(err)
+            releaseError(err)
             return locationClear
         }
         return ok

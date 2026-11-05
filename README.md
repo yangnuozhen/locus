@@ -185,13 +185,31 @@ macOS/iPhone environment and are not established by calculation checks alone.
 
 ## Developer tunnel compatibility
 
-Tunnel status is based on TCP reachability of the configured IP on port 49152,
-not the VPN app or its interface address. Shadowrocket and other VPNs with a
-compatible developer service and included endpoint route can therefore be used
-without LocalDevVPN. Endpoint reachability is advisory; Teleport still validates
-the pairing and developer protocol. See [SETUP.md](SETUP.md) for checks and limits.
+LocalDevVPN is optional. A compatible Shadowrocket setup can route `10.7.0.1/32`
+to this device. The IP and the Remote Pairing **service port** are independent:
+49152 is only the fallback, and a service restart or renewed setup can change the
+actual port.
 
-Run the independent tunnel state checks with:
+**Settings → Tunnel → Discover Remote Pairing port** defaults to on. Locus uses a
+BSD socket test, tries the last confirmed port for that IP (or 49152), and discovers
+`_remotepairing._tcp` on this device via Bonjour. It keeps the configured VPN IP;
+nearby phones cannot supply a port unless their resolved address matches the
+configured endpoint. A successful probe replaces the cached port. Manual mode
+lets you enter the current **RemotePair Port** shown in SideStore's Connection
+Config. Manual ports take precedence until automatic mode is enabled again.
+
+Teleport, joystick, and route startup await discovery before native connection.
+Stopping or replacing a pending start prevents it from applying a location later.
+The configured/discovered port is shared by detection and the native engine.
+Probes stop before native connection and while a simulation is active.
+
+A failed TCP probe is shown as **Remote Pairing port not verified**, not proof of
+a missing VPN route. Endpoint reachability still does not verify this app's pairing
+or the DVT location service. Native failures report the endpoint, stage and numeric
+native codes, without pairing contents. Allow Local Network access for Locus or
+its container. See [SETUP.md](SETUP.md) for recovery steps and device checks.
+
+Run the independent tunnel checks (including loopback sockets) with:
 
 ```sh
 swiftc -module-cache-path /tmp/locus-module-cache -D TUNNEL_CHECKS \
@@ -199,8 +217,7 @@ swiftc -module-cache-path /tmp/locus-module-cache -D TUNNEL_CHECKS \
 /tmp/locus-tunnel-checks
 ```
 
-See [GitHub build access](docs/github-build-access.md) for credentials needed to
-push changes, run the unsigned IPA workflow, and retrieve its artifact.
+See [GitHub build access](docs/github-build-access.md) for cloud build access.
 
 ## Route controls and connected road routes
 

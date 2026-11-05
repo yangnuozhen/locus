@@ -243,3 +243,15 @@
 "End spoofing short" = "结束定位";
 "End spoofing" = "结束模拟定位";
 "Restores the real device location." = "恢复设备的真实位置。";
+
+// Remote Pairing port discovery and native diagnostics.
+"Remote Pairing port not verified" = "Remote Pairing 端口尚未验证";
+"Discover Remote Pairing port" = "自动发现 Remote Pairing 端口";
+"Remote Pairing port" = "Remote Pairing 端口";
+"Save tunnel settings" = "保存隧道设置";
+"Enter a valid IPv4 address and a port from 1 to 65535." = "请输入有效的 IPv4 地址，以及 1–65535 范围内的端口。";
+"TCP test %@:%u failed (errno %d). This does not prove the VPN route is missing." = "TCP 探测 %@:%u 失败（errno %d）。这不代表 VPN 路由未配置。";
+"TCP test %@:%u timed out. Try automatic discovery or match SideStore’s current Remote Pairing port." = "TCP 探测 %@:%u 超时。请尝试自动发现端口，或填写 SideStore 当前使用的 Remote Pairing 端口。";
+"Remote Pairing ports can change. Automatic mode uses the last working port, then discovers this device’s service via Bonjour. If discovery is unavailable, enter the same port used by SideStore. The VPN route and IP stay unchanged. Allow Local Network access for Locus or its container. Stop spoofing before editing." = "Remote Pairing 服务端口可能变化。自动模式先尝试上次可用端口，再通过 Bonjour 查找本机服务。如无法发现，可填写 SideStore 当前使用的端口，无需更改 VPN 路由或 IP。请允许 Locus 或其所在容器访问“本地网络”。更改前请先结束定位。";
+"Could not establish Remote Pairing. Check the service port and this app’s RPPairing file; a working VPN route alone does not verify them." = "无法建立 Remote Pairing 连接。请核对服务端口及本应用导入的 RPPairing 文件；VPN 路由正常并不能验证这两项。";
+"Endpoint %@ · native error %d/%d" = "连接端点 %@ · 原生错误码 %d/%d";

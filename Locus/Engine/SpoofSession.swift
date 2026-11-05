@@ -100,6 +100,8 @@ final class SpoofSession: ObservableObject {
     @Published var favorites: [SavedPlace] = []
     @Published var recents: [SavedPlace] = []
 
+    private var connectionTask: Task<Void, Never>?
+    private var connectionRequestID = UUID()
     private var resendTimer: Timer?
     private var healthTimer: Timer?
     private var motionTimer: Timer?
@@ -135,7 +137,7 @@ final class SpoofSession: ObservableObject {
         cancelMovement()
         variation = MotionVariation()
         driftOffset = (0, 0)
-        apply(coordinate, pairing: pairing, markRecent: true)
+        startAfterResolving { [self] in apply(coordinate, pairing: pairing, markRecent: true) }
     }
 
     func stop(pairing: PairingStore) {
@@ -147,6 +149,11 @@ final class SpoofSession: ObservableObject {
         driftOffset = (0, 0)
         stopResend()
         stopHealth()
+        if !LocationEngine.isSessionActive && simulated == nil {
+            status = .idle
+            endBackground()
+            return
+        }
         isBusy = true
         let result = LocationEngine.clear()
         isBusy = false
@@ -188,12 +195,12 @@ final class SpoofSession: ObservableObject {
             return
         }
         cancelMovement()
-        if simulated == nil || status.isDropped {
-            apply(start, pairing: pairing, markRecent: false)
+        startAfterResolving { [self] in
+            if simulated == nil || status != .active { apply(start, pairing: pairing, markRecent: false) }
+            guard status == .active else { return }
+            joystickActive = true
+            lastMotionTime = ProcessInfo.processInfo.systemUptime
         }
-        guard status == .active else { return }
-        joystickActive = true
-        lastMotionTime = ProcessInfo.processInfo.systemUptime
     }
 
     func updateJoystick(vector: CGVector) {
@@ -206,6 +213,7 @@ final class SpoofSession: ObservableObject {
     }
 
     private func cancelMovement() {
+        cancelConnectionAttempt()
         routeSimulation.clear()
         stopJoystick()
     }
@@ -218,10 +226,35 @@ final class SpoofSession: ObservableObject {
         var next = RouteSimulation()
         guard next.start(points: coordinates.map(MotionPoint.init)) else { return }
         cancelMovement()
-        apply(coordinates[0], pairing: pairing, markRecent: true)
-        guard status == .active else { return }
-        routeSimulation = next
-        lastMotionTime = ProcessInfo.processInfo.systemUptime
+        startAfterResolving { [self] in
+            apply(coordinates[0], pairing: pairing, markRecent: true)
+            guard status == .active else { return }
+            routeSimulation = next
+            lastMotionTime = ProcessInfo.processInfo.systemUptime
+        }
+    }
+
+    private func cancelConnectionAttempt() {
+        connectionRequestID = UUID()
+        connectionTask?.cancel()
+        connectionTask = nil
+        isBusy = false
+    }
+
+    private func startAfterResolving(_ operation: @escaping @MainActor () -> Void) {
+        cancelConnectionAttempt()
+        if LocationEngine.isSessionActive { operation(); return }
+        let request = connectionRequestID
+        isBusy = true
+        if status != .reconnecting { status = .connecting }
+        connectionTask = Task { [weak self] in
+            await DeveloperTunnelMonitor.shared.resolveBeforeConnecting()
+            guard let self, !Task.isCancelled, self.connectionRequestID == request else { return }
+            self.connectionTask = nil
+            self.isBusy = false
+            DeveloperTunnelMonitor.shared.prepareForSimulation()
+            operation()
+        }
     }
 
     func pauseRoute() {
@@ -244,6 +277,7 @@ final class SpoofSession: ObservableObject {
     }
 
     private func interruptMovement() {
+        cancelConnectionAttempt()
         routeSimulation.stop()
         stopJoystick()
     }
@@ -447,11 +481,17 @@ final class SpoofSession: ObservableObject {
                 let selectedPin = self.pin
                 if case .dropped = self.status {
                     self.status = .reconnecting
-                    self.apply(ideal, pairing: pairing, markRecent: false)
+                    self.startAfterResolving { [weak self] in
+                        self?.apply(ideal, pairing: pairing, markRecent: false)
+                        self?.pin = selectedPin
+                    }
                 } else if !LocationEngine.isSessionActive, self.isSpoofing {
                     self.interruptMovement()
                     self.status = .reconnecting
-                    self.apply(ideal, pairing: pairing, markRecent: false)
+                    self.startAfterResolving { [weak self] in
+                        self?.apply(ideal, pairing: pairing, markRecent: false)
+                        self?.pin = selectedPin
+                    }
                 }
                 self.pin = selectedPin
             }
