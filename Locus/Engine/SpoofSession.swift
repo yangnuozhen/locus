@@ -103,7 +103,7 @@ final class SpoofSession: ObservableObject {
     private var resendTimer: Timer?
     private var healthTimer: Timer?
     private var motionTimer: Timer?
-    private var routePlayback: RoutePlayback?
+    @Published private(set) var routeSimulation = RouteSimulation()
     private var variation = MotionVariation()
     private var driftOffset = (east: 0.0, north: 0.0)
     private var lastMotionTime = ProcessInfo.processInfo.systemUptime
@@ -206,18 +206,46 @@ final class SpoofSession: ObservableObject {
     }
 
     private func cancelMovement() {
-        routePlayback = nil
+        routeSimulation.clear()
         stopJoystick()
     }
 
     func followRoute(_ coordinates: [CLLocationCoordinate2D], pairing: PairingStore) {
-        guard pairing.hasPairingFile,
-              let playback = RoutePlayback(points: coordinates.map(MotionPoint.init)) else { return }
+        guard pairing.hasPairingFile else {
+            lastError = String(localized: "Import an RPPairing file in Settings first.")
+            return
+        }
+        var next = RouteSimulation()
+        guard next.start(points: coordinates.map(MotionPoint.init)) else { return }
         cancelMovement()
         apply(coordinates[0], pairing: pairing, markRecent: true)
         guard status == .active else { return }
-        routePlayback = playback
+        routeSimulation = next
         lastMotionTime = ProcessInfo.processInfo.systemUptime
+    }
+
+    func pauseRoute() {
+        guard status == .active else { return }
+        routeSimulation.pause()
+        lastMotionTime = ProcessInfo.processInfo.systemUptime
+    }
+
+    func resumeRoute() {
+        guard status == .active else { return }
+        // Exclude the entire paused interval from the next movement tick.
+        lastMotionTime = ProcessInfo.processInfo.systemUptime
+        routeSimulation.resume()
+    }
+
+    func stopRoute() {
+        routeSimulation.stop()
+        lastMotionTime = ProcessInfo.processInfo.systemUptime
+        // Keep the simulation, resend timer, health checks, and current ideal center.
+    }
+
+    private func interruptMovement() {
+        routeSimulation.stop()
+        stopJoystick()
     }
 
     func addFavorite(name: String, coordinate: CLLocationCoordinate2D) {
@@ -320,7 +348,7 @@ final class SpoofSession: ObservableObject {
                 pushRecent(coordinate)
             }
         case .failure(let error):
-            cancelMovement()
+            interruptMovement()
             lastError = error.localizedDescription
             if simulated != nil {
                 status = .dropped(error.localizedDescription)
@@ -355,10 +383,12 @@ final class SpoofSession: ObservableObject {
         driftOffset = (noise.east, noise.north)
         var next = MotionPoint(ideal)
         var moved = false
-        if var playback = routePlayback {
-            playback.advance(meters: baseSpeed * noise.multiplier * dt)
-            next = playback.position
-            routePlayback = playback.finished ? nil : playback
+        var advancedRoute: RouteSimulation?
+        if routeSimulation.phase == .running {
+            var candidate = routeSimulation
+            candidate.advance(meters: baseSpeed * noise.multiplier * dt)
+            next = candidate.position ?? next
+            advancedRoute = candidate
             moved = true
         } else if joystickActive {
             let magnitude = hypot(joystickVector.dx, joystickVector.dy)
@@ -373,6 +403,7 @@ final class SpoofSession: ObservableObject {
             // Idle drift must not move a pin the user is placing elsewhere on the map.
             let selectedPin = pin
             apply(next.coordinate, pairing: pairing, markRecent: false)
+            if status == .active, let advancedRoute { routeSimulation = advancedRoute }
             if !moved { pin = selectedPin }
         }
     }
@@ -391,7 +422,7 @@ final class SpoofSession: ObservableObject {
                     deviceIP: TunnelConfig.targetIP
                 )
                 if case .failure(let error) = result {
-                    self.cancelMovement()
+                    self.interruptMovement()
                     self.lastError = error.localizedDescription
                     self.status = .dropped(error.localizedDescription)
                     self.postDropNotification(error.localizedDescription)
@@ -418,7 +449,7 @@ final class SpoofSession: ObservableObject {
                     self.status = .reconnecting
                     self.apply(ideal, pairing: pairing, markRecent: false)
                 } else if !LocationEngine.isSessionActive, self.isSpoofing {
-                    self.cancelMovement()
+                    self.interruptMovement()
                     self.status = .reconnecting
                     self.apply(ideal, pairing: pairing, markRecent: false)
                 }

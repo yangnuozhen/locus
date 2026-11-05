@@ -80,16 +80,23 @@ struct MotionPoint: Equatable {
 /// Carries unused travel distance across segment boundaries, including duplicate points.
 struct RoutePlayback {
     private let points: [MotionPoint]
+    private let segmentLengths: [Double]
     private var index = 0
     private var segmentProgress = 0.0
     private(set) var position: MotionPoint
+    private(set) var travelledDistance = 0.0
+    let totalDistance: Double
     var finished: Bool { index >= points.count - 1 }
+    var path: [MotionPoint] { points }
+    var progress: Double { finished ? 1 : (totalDistance > 0 ? min(1, travelledDistance / totalDistance) : 0) }
 
     init?(points: [MotionPoint]) {
         guard points.count >= 2,
               points.allSatisfy({ $0.latitude.isFinite && $0.longitude.isFinite &&
                   abs($0.latitude) <= 90 && abs($0.longitude) <= 180 }) else { return nil }
         self.points = points
+        segmentLengths = zip(points, points.dropFirst()).map { $0.distance(to: $1) }
+        totalDistance = segmentLengths.reduce(0, +)
         position = points[0]
     }
 
@@ -99,18 +106,99 @@ struct RoutePlayback {
         while !finished {
             let start = points[index]
             let end = points[index + 1]
-            let length = start.distance(to: end)
+            let length = segmentLengths[index]
             let needed = max(0, length - segmentProgress)
             if remaining >= needed {
                 remaining -= needed
+                travelledDistance += needed
                 index += 1
                 segmentProgress = 0
                 position = end
             } else {
                 segmentProgress += remaining
+                travelledDistance += remaining
                 position = start.interpolated(to: end, fraction: segmentProgress / length)
                 break
             }
+        }
+    }
+}
+
+/// Pausing and stopping never discard the position or accumulate an elapsed-time debt.
+/// The session supplies a fresh time baseline on resume; only running consumes distance.
+struct RouteSimulation {
+    enum Phase { case idle, running, paused, stopped, completed }
+    private(set) var phase: Phase = .idle
+    private var playback: RoutePlayback?
+    var position: MotionPoint? { playback?.position }
+    var path: [MotionPoint] { playback?.path ?? [] }
+    var progress: Double { playback?.progress ?? 0 }
+    var totalDistance: Double { playback?.totalDistance ?? 0 }
+    var travelledDistance: Double { playback?.travelledDistance ?? 0 }
+    var canStop: Bool { phase == .running || phase == .paused }
+
+    @discardableResult
+    mutating func start(points: [MotionPoint]) -> Bool {
+        guard var next = RoutePlayback(points: points) else { return false }
+        next.advance(meters: 0)
+        playback = next
+        phase = next.finished ? .completed : .running
+        return true
+    }
+
+    mutating func pause() {
+        guard phase == .running else { return }
+        phase = .paused
+    }
+
+    mutating func resume() {
+        guard phase == .paused else { return }
+        phase = .running
+    }
+
+    mutating func stop() {
+        guard canStop else { return }
+        phase = .stopped
+    }
+
+    mutating func clear() { self = RouteSimulation() }
+
+    mutating func advance(meters: Double) {
+        guard phase == .running else { return }
+        playback?.advance(meters: meters)
+        if playback?.finished == true { phase = .completed }
+    }
+}
+
+struct RouteStop: Identifiable, Equatable {
+    let id: UUID
+    var point: MotionPoint
+    var name: String
+
+    init(point: MotionPoint, name: String = "") {
+        id = UUID()
+        self.point = point
+        self.name = name
+    }
+}
+
+enum RouteGeometry {
+    /// Preserve turns and visit order, dropping only a shared boundary vertex.
+    static func joined(_ segments: [[MotionPoint]]) -> [MotionPoint] {
+        var result: [MotionPoint] = []
+        for segment in segments {
+            for point in segment {
+                if let last = result.last, last.distance(to: point) < 0.01 { continue }
+                result.append(point)
+            }
+        }
+        return result
+    }
+
+    static func distinctStops(_ stops: [MotionPoint]) -> [MotionPoint] {
+        stops.reduce(into: []) { result, point in
+            if let last = result.last, last.distance(to: point) < 1 { return }
+            result.append(point)
         }
     }
 }

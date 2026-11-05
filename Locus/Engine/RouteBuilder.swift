@@ -3,6 +3,40 @@ import Foundation
 import MapKit
 
 enum RouteBuilder {
+    /// Build each leg with the same road type, then play/export one continuous path.
+    static func roadRoute(
+        through stops: [CLLocationCoordinate2D],
+        transportType: MKDirectionsTransportType,
+        onProgress: @MainActor (Int, Int) -> Void
+    ) async throws -> [CLLocationCoordinate2D] {
+        let points = RouteGeometry.distinctStops(stops.map(MotionPoint.init))
+        guard points.count >= 2 else {
+            throw NSError(domain: "Locus", code: 3, userInfo: [NSLocalizedDescriptionKey:
+                String(localized: "Add at least two different route stops.")])
+        }
+        let total = points.count - 1
+        var segments: [[MotionPoint]] = []
+        await onProgress(0, total)
+        for index in 0..<total {
+            try Task.checkCancellation()
+            do {
+                let leg = try await roadRoute(from: points[index].coordinate, to: points[index + 1].coordinate,
+                                              transportType: transportType)
+                try Task.checkCancellation()
+                guard leg.count >= 2 else {
+                    throw NSError(domain: "Locus", code: 1, userInfo: [NSLocalizedDescriptionKey: String(localized: "No route found")])
+                }
+                segments.append(leg.map(MotionPoint.init))
+                await onProgress(index + 1, total)
+            } catch {
+                if Task.isCancelled { throw CancellationError() }
+                throw NSError(domain: "Locus", code: 4, userInfo: [NSLocalizedDescriptionKey:
+                    String(format: String(localized: "Could not build segment %lld: %@"), Int64(index + 1), error.localizedDescription)])
+            }
+        }
+        return RouteGeometry.joined(segments).map(\.coordinate)
+    }
+
     static func roadRoute(
         from start: CLLocationCoordinate2D,
         to end: CLLocationCoordinate2D,
@@ -15,7 +49,12 @@ enum RouteBuilder {
         request.requestsAlternateRoutes = false
 
         let directions = MKDirections(request: request)
-        let response = try await directions.calculate()
+        let response = try await withTaskCancellationHandler {
+            try await directions.calculate()
+        } onCancel: {
+            directions.cancel()
+        }
+        try Task.checkCancellation()
         guard let route = response.routes.first else {
             throw NSError(domain: "Locus", code: 1, userInfo: [NSLocalizedDescriptionKey: String(localized: "No route found")])
         }
@@ -80,6 +119,9 @@ enum GPXCodec {
         }
         guard !coords.isEmpty else {
             throw NSError(domain: "Locus", code: 2, userInfo: [NSLocalizedDescriptionKey: String(localized: "No track points found in GPX")])
+        }
+        guard coords.allSatisfy(CLLocationCoordinate2DIsValid) else {
+            throw NSError(domain: "Locus", code: 5, userInfo: [NSLocalizedDescriptionKey: String(localized: "Invalid coordinates.")])
         }
         return coords
     }

@@ -54,6 +54,8 @@ struct StatusBarView: View {
         case .connecting:
             return .status(String(localized: "Connecting…"))
         case .active:
+            if session.routeSimulation.phase == .paused { return .status(String(localized: "Route paused")) }
+            if session.routeSimulation.phase == .running { return .status(String(localized: "Route running")) }
             return .status(String(localized: "Spoofing"))
         case .reconnecting:
             return .status(String(localized: "Reconnecting…"))
@@ -152,6 +154,10 @@ struct BottomControlsView: View {
                 .frame(maxWidth: .infinity, alignment: .trailing)
             }
 
+            if session.routeSimulation.phase != .idle {
+                RoutePlaybackControls()
+            }
+
             SpeedControls()
 
             HStack(spacing: 10) {
@@ -187,7 +193,7 @@ struct BottomControlsView: View {
                     Button {
                         session.stop(pairing: pairing)
                     } label: {
-                        Text(String(localized: "Stop"))
+                        Text(String(localized: "End spoofing short"))
                             .font(.subheadline.weight(.bold))
                             .foregroundStyle(.white)
                             .frame(minWidth: 72)
@@ -197,6 +203,8 @@ struct BottomControlsView: View {
                             .contentShape(Capsule())
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(String(localized: "End spoofing"))
+                    .accessibilityHint(String(localized: "Restores the real device location."))
                 } else {
                     Button {
                         guard let pin = session.pin else {

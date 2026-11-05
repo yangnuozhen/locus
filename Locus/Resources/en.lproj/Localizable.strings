@@ -209,3 +209,37 @@
 "RPPairing file saved. Connect a compatible developer tunnel, then teleport." = "RPPairing file saved. Connect a compatible developer tunnel, then teleport.";
 "RPPairing is ready. Connect a compatible developer tunnel, then teleport." = "RPPairing is ready. Connect a compatible developer tunnel, then teleport.";
 "Could not open the developer tunnel. Enable LocalDevVPN or a compatible VPN route to the configured tunnel IP, then retry on Wi‑Fi." = "Could not open the developer tunnel. Enable LocalDevVPN or a compatible VPN route to the configured tunnel IP, then retry on Wi‑Fi.";
+
+// Route playback controls and connected itineraries.
+"Current route" = "Current route";
+"Add your start, any stops along the way, and your destination." = "Add your start, any stops along the way, and your destination.";
+"Choose stops on map" = "Choose stops on map";
+"Add selected pin as next stop" = "Add selected pin as next stop";
+"Use current location as start" = "Use current location as start";
+"Start → Stops → Destination" = "Start → Stops → Destination";
+"Points are visited in order. The first is the start and the last is the destination. Use Edit to reorder or remove points; add more points to extend the route." = "Points are visited in order. The first is the start and the last is the destination. Use Edit to reorder or remove points; add more points to extend the route.";
+"Building segment %lld of %lld" = "Building segment %lld of %lld";
+"Cancel route build" = "Cancel route build";
+"Build connected route" = "Build connected route";
+"Prepared route" = "Prepared route";
+"Start route" = "Start route";
+"Editing stops or the road type requires rebuilding. Your current running or paused route is kept until you stop it." = "Editing stops or the road type requires rebuilding. Your current running or paused route is kept until you stop it.";
+"Draw / GPX" = "Draw / GPX";
+"Pause and Stop route keep your simulated location here. End spoofing restores real GPS. Enabled drift remains centered on the held location." = "Pause and Stop route keep your simulated location here. End spoofing restores real GPS. Enabled drift remains centered on the held location.";
+"Stop %lld" = "Stop %lld";
+"Route running" = "Route running";
+"Route paused" = "Route paused";
+"Route stopped · location held" = "Route stopped · location held";
+"Route finished · location held" = "Route finished · location held";
+"Pause route" = "Pause route";
+"Resume route" = "Resume route";
+"Stop route" = "Stop route";
+"Route progress" = "Route progress";
+"Add at least two different route stops." = "Add at least two different route stops.";
+"Could not build segment %lld: %@" = "Could not build segment %lld: %@";
+"Tap the map or search to add stops in order." = "Tap the map or search to add stops in order.";
+"%lld route stops" = "%lld route stops";
+"Undo" = "Undo";
+"End spoofing short" = "End";
+"End spoofing" = "End spoofing";
+"Restores the real device location." = "Restores the real device location.";

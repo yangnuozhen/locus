@@ -28,6 +28,58 @@ struct MotionChecks {
         duplicate.advance(meters: 0)
         assert(duplicate.finished)
 
+        // Pause/stop retain the center and progress; neither consumes a queued tick.
+        var simulation = RouteSimulation()
+        assert(simulation.start(points: [origin, end]))
+        simulation.advance(meters: 2)
+        assert(simulation.phase == .running && simulation.canStop)
+        let held = simulation.position
+        let heldProgress = simulation.progress
+        simulation.pause()
+        simulation.pause()
+        for _ in 0..<100 { simulation.advance(meters: 100_000) }
+        assert(simulation.phase == .paused && simulation.position == held)
+        assert(simulation.progress == heldProgress)
+        simulation.resume()
+        simulation.advance(meters: 1)
+        assert(abs(origin.distance(to: simulation.position!) - 3) < 0.00001)
+        simulation.pause()
+        simulation.stop()
+        let stopped = simulation.position
+        simulation.resume()
+        simulation.advance(meters: 100)
+        assert(simulation.phase == .stopped && !simulation.canStop && simulation.position == stopped)
+        assert(!simulation.start(points: [origin]))
+        assert(simulation.phase == .stopped && simulation.position == stopped)
+        assert(simulation.start(points: [end, origin]))
+        simulation.advance(meters: 100)
+        assert(simulation.phase == .completed && simulation.position == origin && simulation.progress == 1)
+        simulation.resume()
+        assert(simulation.phase == .completed)
+        simulation.clear()
+        assert(simulation.phase == .idle && simulation.position == nil && simulation.path.isEmpty)
+        assert(simulation.start(points: [origin, origin]))
+        assert(simulation.phase == .completed && simulation.progress == 1)
+
+        // Joining legs preserves visit order and shared endpoints, including a return trip.
+        let middle = origin.offset(east: 5, north: 0)
+        let connected = RouteGeometry.joined([[origin, middle], [middle, end], [end, middle, origin]])
+        assert(connected == [origin, middle, end, middle, origin])
+        assert(RouteGeometry.joined([]).isEmpty)
+        assert(RouteGeometry.distinctStops([origin, origin, middle, middle, end, origin]) == [origin, middle, end, origin])
+        var connectedPlayback = RouteSimulation()
+        assert(connectedPlayback.start(points: connected))
+        assert(abs(connectedPlayback.totalDistance - 20) < 0.00001)
+        connectedPlayback.advance(meters: 12)
+        assert(abs(connectedPlayback.progress - 0.6) < 0.00001)
+        assert(abs(origin.distance(to: connectedPlayback.position!) - 8) < 0.00001)
+        connectedPlayback.advance(meters: 8.00001)
+        assert(connectedPlayback.phase == .completed && connectedPlayback.position == origin)
+        var stops = [RouteStop(point: origin, name: "A"), RouteStop(point: middle, name: "B"), RouteStop(point: end, name: "C")]
+        let firstID = stops[0].id
+        stops.swapAt(0, 2)
+        assert(stops[2].id == firstID && stops.map(\.name) == ["C", "B", "A"])
+
         let crossing = MotionPoint(latitude: 0, longitude: 179.99999)
         let across = crossing.offset(east: 10, north: 0)
         assert(abs(crossing.distance(to: across) - 10) < 0.00001)
@@ -82,7 +134,7 @@ struct MotionChecks {
         assert(sanitized.customSpeedKPH == 5 && sanitized.driftRadius == 1 && sanitized.speedVariationPercent == 10)
         defaults.set(Data("invalid".utf8), forKey: MotionSettings.defaultsKey)
         assert(MotionSettings.load(from: defaults) == MotionSettings())
-        print("Motion checks passed (route timing, live speed, bounded drift, smoothing, persistence, edge cases)")
+        print("Motion checks passed (pause/resume/stop, connected routes, timing, drift, persistence, edge cases)")
     }
 }
 

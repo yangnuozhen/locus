@@ -201,3 +201,38 @@ swiftc -module-cache-path /tmp/locus-module-cache -D TUNNEL_CHECKS \
 
 See [GitHub build access](docs/github-build-access.md) for credentials needed to
 push changes, run the unsigned IPA workflow, and retrieve its artifact.
+
+## Route controls and connected road routes
+
+The map tray and Routes show progress with **Pause route**, **Resume route**, and
+**Stop route**. Pause retains the cursor and excludes paused time from movement;
+Stop ends playback and holds the current simulated center. Replaying starts from
+the prepared route's beginning. Completion also holds the endpoint. Enabled drift
+continues around the held center. **End** (End spoofing) separately restores real
+GPS. A location-write failure stops motion; reconnection does not resume it.
+
+In Routes, choose **Choose stops on map**, then tap points or search places in visit
+order. Finish with Done, or Undo the last stop. You can also append the selected
+pin or use the current simulated/known location as the start. The numbered list
+matches the map: first is start, last is destination, and the rest are intermediate
+stops. Edit enables drag reordering and deletion. Adding another stop makes the
+previous destination an intermediate stop.
+
+**Build connected route** requests each leg with the selected road type, shows
+progress, and supports cancellation. It commits one continuous route only after
+all legs succeed; errors identify the failed leg. Shared boundary vertices are
+deduplicated. Play and GPX export use the entire connected path.
+
+Editing stops or road type invalidates that prepared road route. A running or
+paused playback keeps its own snapshot; stop it before starting a new route.
+Cancelled/obsolete requests cannot overwrite a newer plan. Road planning needs
+Apple Maps network access. Drawn and imported GPX paths also support playback
+controls, but route drafts and playback are not restored after relaunch.
+
+The standalone motion checks now include pause/resume/stop, repeated actions,
+completion, joined-leg order, distance/progress, return trips, duplicate boundaries,
+and stable stop identities after reordering. On iPhone, also verify a long pause
+without catch-up, hold position for more than 12 seconds after Stop route, drift
+on/off, background/resume, reconnect, switching to joystick/Teleport, and ending
+spoofing. Check multi-stop planning, cancellation/failure, reorder/delete and GPX
+export with English/Chinese and large text.

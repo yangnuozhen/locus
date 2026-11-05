@@ -209,3 +209,37 @@
 "RPPairing file saved. Connect a compatible developer tunnel, then teleport." = "RPPairing 文件已保存。连接兼容的开发者隧道后即可模拟定位。";
 "RPPairing is ready. Connect a compatible developer tunnel, then teleport." = "RPPairing 已就绪。连接兼容的开发者隧道后即可模拟定位。";
 "Could not open the developer tunnel. Enable LocalDevVPN or a compatible VPN route to the configured tunnel IP, then retry on Wi‑Fi." = "无法打开开发者隧道。请开启 LocalDevVPN 或兼容 VPN 中指向所设隧道 IP 的路由，并在 Wi‑Fi 下重试。";
+
+// Route playback controls and connected itineraries.
+"Current route" = "当前路线";
+"Add your start, any stops along the way, and your destination." = "依次添加起点、途经点和终点。";
+"Choose stops on map" = "在地图上连续选点";
+"Add selected pin as next stop" = "将当前图钉添加为下一站";
+"Use current location as start" = "以当前模拟位置或定位作为起点";
+"Start → Stops → Destination" = "起点 → 途经点 → 终点";
+"Points are visited in order. The first is the start and the last is the destination. Use Edit to reorder or remove points; add more points to extend the route." = "按列表顺序依次经过各点。首个点为起点，最后一个点为终点。点击“编辑”可拖动排序或删除；继续添加站点即可延长路线。";
+"Building segment %lld of %lld" = "正在生成第 %lld 段，共 %lld 段";
+"Cancel route build" = "取消生成路线";
+"Build connected route" = "生成完整路线";
+"Prepared route" = "已生成路线";
+"Start route" = "开始路线";
+"Editing stops or the road type requires rebuilding. Your current running or paused route is kept until you stop it." = "修改站点或道路类型后需重新生成路线；正在运行或暂停的路线会保留，直到你停止它。";
+"Draw / GPX" = "绘制 / GPX";
+"Pause and Stop route keep your simulated location here. End spoofing restores real GPS. Enabled drift remains centered on the held location." = "暂停或停止路线后，模拟位置会停留在当前点。“结束定位”才会恢复真实 GPS。已开启的随机漂移仍以停留点为中心。";
+"Stop %lld" = "途经点 %lld";
+"Route running" = "路线运行中";
+"Route paused" = "路线已暂停";
+"Route stopped · location held" = "路线已停止 · 位置保持";
+"Route finished · location held" = "路线已完成 · 位置保持";
+"Pause route" = "暂停路线";
+"Resume route" = "继续路线";
+"Stop route" = "停止路线";
+"Route progress" = "路线进度";
+"Add at least two different route stops." = "请至少添加两个不同的路线站点。";
+"Could not build segment %lld: %@" = "无法生成第 %lld 段路线：%@";
+"Tap the map or search to add stops in order." = "点按地图或搜索地点，按顺序添加路线站点。";
+"%lld route stops" = "已添加 %lld 个站点";
+"Undo" = "撤销上一站";
+"End spoofing short" = "结束定位";
+"End spoofing" = "结束模拟定位";
+"Restores the real device location." = "恢复设备的真实位置。";
